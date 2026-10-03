@@ -73,6 +73,14 @@ def test_config_cria_os_alvos_derivados(cenario):
     assert cenario.cliente.chamadas == [URLS.config_eleicoes()]
 
 
+def test_lista_de_municipios_e_buscada_logo_na_partida(cenario):
+    """A busca de municípios depende do EA12; esperar até 5 min pelo início espalhado seria ruim para o usuário."""
+    cenario.poller._tick()  # sem avançar o relógio
+    chamadas = cenario.cliente.chamadas
+    assert URLS.municipios(6257) in chamadas and URLS.municipios(6259) in chamadas
+    assert URLS.resultado(6257, 1, "br") not in chamadas  # os demais continuam espalhados
+
+
 def test_busca_o_que_existe_e_trata_404_com_espera_longa(cenario):
     cenario.avancar(1000)
     assert cenario.store.get(BR).idg == "1026910"

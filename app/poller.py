@@ -183,7 +183,9 @@ class Poller:
             return TseUrls(self.cfg.tse_base, self.cfg.ambiente, ciclo, dirs)
 
         for alvo in montar_alvos(disputas, urls_do_ciclo):
-            self._adicionar(alvo)
+            # arquivos "estáticos" (lista de municípios) mudam pouco, mas a busca de municípios depende deles:
+            # buscar já na partida; o resto espalha a primeira consulta para não disparar uma rajada
+            self._adicionar(alvo, inicio_imediato=alvo.camada == "estatico")
         with self._lock:
             return len(self._estados)
 
