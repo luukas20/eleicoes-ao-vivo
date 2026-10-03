@@ -57,7 +57,7 @@ def test_so_restringe_as_eleicoes(config):
     assert {d.ele for d in disputas} == {"6259"} and len(disputas) == 5
 
 
-def test_segundo_turno_por_uf_so_cria_alvos_das_ufs_listadas():
+def test_segundo_turno_por_uf_vira_uma_disputa_com_as_ufs_juntas():
     config = {"pleitos": [{"cd": "9", "ciclo": "ele2026", "data": "2026-10-25", "eleicoes": [
         {"cd": "6260", "cdt2": None, "turno": 2, "tipo": 1, "abrangencias": [
             {"cd": "sp", "cargos": [{"cd": 3, "nome": "Governador", "tipo": 1}], "municipios": []},
@@ -65,6 +65,6 @@ def test_segundo_turno_por_uf_so_cria_alvos_das_ufs_listadas():
         ]},
     ]}]}
     disputas = disputas_ativas(config)
-    assert [(d.ele, d.turno, d.ufs) for d in disputas] == [("6260", 2, ("sp",)), ("6260", 2, ("rj",))]
+    assert [(d.ele, d.turno, d.ufs) for d in disputas] == [("6260", 2, ("sp", "rj"))]  # uma disputa, duas UFs
     chaves = {a.chave for a in montar_alvos(disputas, urls_do_ciclo) if a.tipo == "u"}
     assert chaves == {"u:6260:3:sp", "u:6260:3:rj"}

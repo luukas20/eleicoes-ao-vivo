@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Eleições ao Vivo{% endblock %} · Eleições ao Vivo</title>
+  <meta name="description" content="Painel não oficial de acompanhamento ao vivo da apuração das eleições, com dados públicos do TSE exibidos sem alteração.">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <script src="{{ url_for('static', filename='js/tema.js') }}"></script>
+</head>
+<body data-pagina="{{ pagina }}"{% block dados %}{% endblock %}>
+  <a class="pular" href="#conteudo">Ir para o conteúdo</a>
+  <div id="faixa-simulado" class="faixa-simulado" hidden>DADOS SIMULADOS · ambiente de teste, não são resultados reais</div>
+
+  <header class="topo">
+    <div class="contem">
+      <div class="topo-linha">
+        <a class="marca" href="/" aria-label="Eleições ao Vivo, página inicial">
+          <svg class="marca-logo" viewBox="0 0 34 34" aria-hidden="true">
+            <rect class="fundo" width="34" height="34" rx="9"/>
+            <rect class="b1" x="7" y="17" width="5" height="10" rx="1.5"/>
+            <rect class="b2" x="14.5" y="8" width="5" height="19" rx="1.5"/>
+            <rect class="b3" x="22" y="13" width="5" height="14" rx="1.5"/>
+          </svg>
+          <div class="marca-texto">
+            <h1>Eleições ao Vivo</h1>
+            <p id="sub-topo">Apuração em tempo real</p>
+          </div>
+        </a>
+        <div class="topo-acoes">
+          <span id="chip-status" class="chip" data-estado="atencao" role="status" aria-live="polite"><span>Conectando…</span></span>
+          <button id="btn-tema" class="btn-icone" type="button" aria-label="Alternar tema claro/escuro"></button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="contem">
+    <nav class="nav" aria-label="Seções do painel">
+      <a class="aba" href="/" {% if aba == 'presidente' %}aria-current="page"{% endif %}>Presidente</a>
+      <a class="aba" href="/governadores" {% if aba == 'governador' %}aria-current="page"{% endif %}>Governadores</a>
+      <a class="aba" href="/senadores" {% if aba == 'senador' %}aria-current="page"{% endif %}>Senadores</a>
+      <div class="nav-fim">
+        <div id="turnos" class="turnos" aria-label="Turno" hidden></div>
+        <label class="so-leitor" for="sel-uf">Ir para uma UF</label>
+        <select id="sel-uf" class="seletor">
+          <option value="">Ir para uma UF…</option>
+          {% for codigo, nome in ufs %}<option value="{{ codigo }}"{% if codigo == uf %} selected{% endif %}>{{ nome }}</option>{% endfor %}
+        </select>
+      </div>
+    </nav>
+
+    <main id="conteudo">
+      {% block conteudo %}{% endblock %}
+    </main>
+
+    <footer class="rodape">
+      <p>Projeto independente e <strong>não oficial</strong>, sem vínculo com o Tribunal Superior Eleitoral. Os números vêm dos arquivos públicos de divulgação de resultados do TSE (resultados.tse.jus.br) e são exibidos sem alteração; as diferenças entre colocados são calculadas pelo painel. Para o resultado oficial, consulte sempre o TSE.</p>
+      <p><a href="{{ repo_url }}">Código-fonte no GitHub</a> · <a href="/status">Diagnóstico</a></p>
+    </footer>
+  </div>
+
+  <div id="dica" class="dica" role="tooltip" hidden></div>
+  <script type="module" src="{{ url_for('static', filename='js/' ~ pagina ~ '.js') }}"></script>
+</body>
+</html>

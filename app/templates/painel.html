@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titulo %}Presidente{% endblock %}
+{% block conteudo %}
+<div id="avisos" class="avisos" aria-live="polite"></div>
+<div class="grade-pagina">
+  <div id="slot-heroi"></div>
+  <div id="slot-kpis"></div>
+  <div class="duas-colunas">
+    <section class="cartao" aria-labelledby="t-ranking">
+      <h2 id="t-ranking">Presidente · Brasil</h2>
+      <p class="sub">Candidatos em ordem de votos. Passe o mouse (ou use Tab) para ver os detalhes.</p>
+      <div id="slot-ranking"></div>
+    </section>
+    <section class="cartao" aria-labelledby="t-mapa">
+      <h2 id="t-mapa">Quem lidera em cada UF</h2>
+      <p class="sub">Cada bloco é uma UF (EX = exterior). A cor indica o candidato à frente; a barrinha no pé do bloco mostra o quanto da UF já foi totalizado. Só os três primeiros colocados ganham cor.</p>
+      <div id="slot-mapa"></div>
+      <div id="slot-legenda"></div>
+    </section>
+  </div>
+  <section class="cartao" aria-labelledby="t-tabela">
+    <h2 id="t-tabela">Resultado por UF</h2>
+    <p class="sub">A mesma informação do mapa, em tabela. Clique no título de uma coluna para ordenar.</p>
+    <p class="sub nota">O TSE atualiza os arquivos de cada UF em intervalos um pouco maiores que o do total nacional; por isso o mapa e a tabela podem estar até cerca de 1 minuto atrás do total do Brasil, no topo.</p>
+    <div id="slot-tabela" class="rolagem"></div>
+  </section>
+</div>
+{% endblock %}

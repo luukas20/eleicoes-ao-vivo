@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block titulo %}{{ nome_uf }}{% endblock %}
+{% block dados %} data-uf="{{ uf }}" data-nome-uf="{{ nome_uf }}"{% endblock %}
+{% block conteudo %}
+<h2 class="uf-titulo">{{ nome_uf }}</h2>
+<div id="abas" class="abas-internas" role="tablist" aria-label="Disputas em {{ nome_uf }}"></div>
+<div id="paineis"></div>
+{% endblock %}

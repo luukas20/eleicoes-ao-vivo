@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block dados %} data-slug="{{ slug }}"{% endblock %}
+{% block conteudo %}
+<div id="avisos" class="avisos" aria-live="polite"></div>
+<section class="cartao" aria-labelledby="t-cargo">
+  <h2 id="t-cargo">{{ titulo }} · todas as UFs</h2>
+  <p class="sub" id="resumo">Carregando…</p>
+  <div id="slot-tabela" class="rolagem"></div>
+</section>
+{% endblock %}

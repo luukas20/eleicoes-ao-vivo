@@ -6,7 +6,7 @@ entra sozinho quando o TSE o publicar na configuração.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .store import chave
 from .tse.dominio import BRASIL, CARGOS, CARGOS_GERAIS, Cargo, ufs_do_cargo
@@ -74,7 +74,21 @@ def disputas_ativas(config: dict, *, so: tuple[str, ...] = (), cargos: tuple[int
                         ele_segundo_turno=eleicao["cdt2"],
                     )
                 )
-    return disputas
+    return _mesclar(disputas)
+
+
+def _mesclar(disputas: list[Disputa]) -> list[Disputa]:
+    """Junta num só item o mesmo cargo/eleição/turno repetido por UF (comum no 2º turno)."""
+    por_chave: dict[tuple, Disputa] = {}
+    for d in disputas:
+        k = (d.ele, d.turno, d.cargo.cd)
+        atual = por_chave.get(k)
+        if atual is None:
+            por_chave[k] = d
+        else:
+            ufs = atual.ufs + tuple(u for u in d.ufs if u not in atual.ufs)
+            por_chave[k] = replace(atual, ufs=ufs, nacional=atual.nacional or d.nacional)
+    return list(por_chave.values())
 
 
 def montar_alvos(disputas: list[Disputa], urls_do_ciclo: Callable[[str], TseUrls]) -> list[Alvo]:
