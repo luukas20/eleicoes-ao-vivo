@@ -22,6 +22,7 @@ const disputas = new Disputas({
   paineis: document.getElementById("paineis"),
   local: nomeUf,
   aoFase: (fase) => casca.atualizarContexto({ fase }),
+  historico: { uf, consulta },
 });
 
 new Atualizador({

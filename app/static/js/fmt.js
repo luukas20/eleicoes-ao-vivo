@@ -25,6 +25,16 @@ export function hora(iso) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: FUSO });
 }
 
+// 19.5 -> "19,50%" (o campo de 9 casas do TSE, formatado com 2 casas, meio para cima como o TSE)
+export function pct2(n) {
+  return `${Number(n).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+}
+
+// instante (ISO ou milissegundos) -> "19:42"
+export function horaMinuto(instante) {
+  return new Date(instante).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: FUSO });
+}
+
 export function dataLonga(isoData) {
   if (!isoData) return "";
   return new Date(`${isoData}T12:00:00-03:00`).toLocaleDateString("pt-BR", {

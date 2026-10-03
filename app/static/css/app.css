@@ -72,7 +72,10 @@ img { max-width: 100%; }
 .pular:focus { left: 8px; top: 8px; }
 .so-leitor { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.contem { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+.contem {
+  max-width: 1180px; margin: 0 auto;
+  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); /* respeita o "notch" */
+}
 
 /* ---- faixa de dados simulados ------------------------------------------------------------------- */
 .faixa-simulado {
@@ -160,9 +163,13 @@ img { max-width: 100%; }
 .aviso[data-tipo="critico"] svg { color: var(--critico); }
 
 .grade-pagina { display: grid; gap: 16px; margin-bottom: 16px; }
+/* ranking | mapa: empilhados no celular; lado a lado a partir de tablet em retrato */
 .duas-colunas { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 960px) {
-  .duas-colunas { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: start; }
+@media (min-width: 700px) {
+  .duas-colunas { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+}
+@media (min-width: 1000px) {
+  .duas-colunas { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
 }
 
 /* ---- herói (progresso) + KPIs -------------------------------------------------------------------------- */
@@ -176,9 +183,15 @@ img { max-width: 100%; }
   border-radius: 0 4px 4px 0; transition: width 0.8s ease;
 }
 
-.kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+/* 5 indicadores: 2 colunas no celular (o 5º ocupa a linha toda), 5 lado a lado a partir do tablet — sem sobra solta */
+.kpis { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kpis .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+@media (min-width: 700px) {
+  .kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .kpis .kpi:last-child:nth-child(odd) { grid-column: auto; }
+}
 .kpi { background: var(--sup); border: 1px solid var(--anel); border-radius: var(--raio); padding: 14px 16px; min-width: 0; }
-.kpi-valor { font-size: 1.625rem; font-weight: 650; line-height: 1.15; margin-top: 2px; }
+.kpi-valor { font-size: clamp(1.3rem, 2.6vw, 1.625rem); font-weight: 650; line-height: 1.15; margin-top: 2px; }
 .kpi-sub { font-size: 0.8125rem; color: var(--tinta-2); margin-top: 2px; }
 
 /* ---- ranking de candidatos --------------------------------------------------------------------------- */
@@ -257,6 +270,35 @@ img { max-width: 100%; }
 .chave { width: 12px; height: 12px; border-radius: 3px; background: var(--cor, var(--outros)); flex: none; }
 .chave-vazia { background: var(--page); border: 1px solid var(--eixo); }
 
+/* ---- gráfico de evolução (linhas) ----------------------------------------------------------------------- */
+.grafico-cab { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 16px; align-items: flex-start; }
+.grafico-ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--anel); border-radius: 999px; overflow: hidden; background: var(--sup); }
+.seg button { border: 0; background: none; padding: 7px 12px; cursor: pointer; color: var(--tinta-2); font-size: 0.875rem; }
+.seg button[aria-pressed="true"] { background: var(--tinta); color: var(--page); font-weight: 600; }
+.btn-texto {
+  padding: 7px 14px; border-radius: 999px; border: 1px solid var(--anel); background: var(--sup);
+  color: var(--tinta-2); cursor: pointer; font-size: 0.875rem;
+}
+.btn-texto:hover { background: var(--page); }
+.legenda-linhas { display: flex; flex-wrap: wrap; gap: 6px 18px; list-style: none; margin: 12px 0 6px; padding: 0; font-size: 0.875rem; }
+.legenda-linhas li { display: inline-flex; align-items: center; gap: 6px; }
+.traco { display: inline-block; width: 18px; height: 0; border-top: 3px solid var(--cor, var(--outros)); border-radius: 2px; }
+.legenda-nome { font-weight: 600; }
+.grafico-area { position: relative; touch-action: pan-y; border-radius: 8px; }
+.grafico-area svg { display: block; width: 100%; height: auto; overflow: visible; }
+.grade-linha { stroke: var(--grade); stroke-width: 1; }
+.eixo-linha { stroke: var(--eixo); stroke-width: 1; }
+.meta-50 { stroke: var(--tinta-2); stroke-width: 1; opacity: 0.55; }
+.eixo-txt { fill: var(--tinta-2); font-size: 12px; font-family: var(--fonte); }
+.serie { fill: none; stroke: var(--cor, var(--outros)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ponto-final, .ponto-mira { fill: var(--cor, var(--outros)); stroke: var(--sup); stroke-width: 2; }
+.rotulo-fim { fill: var(--tinta); font-size: 12px; font-weight: 600; font-family: var(--fonte); }
+.mira { stroke: var(--tinta-2); stroke-width: 1; }
+.captura { fill: transparent; cursor: crosshair; }
+.grafico-tabela { max-height: 340px; overflow: auto; margin-top: 10px; }
+.grafico-tabela thead th { position: sticky; top: 0; background: var(--sup); }
+
 /* ---- tabelas ---------------------------------------------------------------------------------------- */
 .rolagem { overflow-x: auto; }
 table.tabela { width: 100%; border-collapse: collapse; font-size: 0.9375rem; margin-top: 8px; }
@@ -322,6 +364,17 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 0.9375rem; mar
 /* ---- estado de carregamento / vazio ----------------------------------------------------------------- */
 .vazio { padding: 28px 8px; text-align: center; color: var(--tinta-2); }
 .atualizando { opacity: 0.6; transition: opacity 0.2s; }
+
+/* ---- toque (celular e tablet): alvos de pelo menos 44 px e campos de 16 px (o iOS dá zoom em menos que isso) ---- */
+@media (pointer: coarse) {
+  .aba, .seletor, .btn-texto, .seg button, .abas-internas button, .turnos a, .th-botao, .campo { min-height: 44px; }
+  .th-botao, .turnos a, .seg button { min-width: 44px; justify-content: center; }
+  .aba, .turnos a, .th-botao, .seg button, .btn-texto { display: inline-flex; align-items: center; }
+  .btn-icone { width: 44px; height: 44px; }
+  .seletor, .campo { font-size: 1rem; }
+  .tabela td { padding-top: 12px; padding-bottom: 12px; }
+  .resultados-busca a { padding: 13px 12px; }
+}
 
 /* ---- telas pequenas ------------------------------------------------------------------------------------ */
 @media (max-width: 520px) {

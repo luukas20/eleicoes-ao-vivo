@@ -7,12 +7,20 @@ Painel **não oficial** de acompanhamento ao vivo da apuração das eleições b
 ## O que já faz
 
 - **Presidente (Brasil):** progresso da totalização, comparecimento, abstenção, brancos e nulos, ranking com foto, partido e vice, mapa de blocos das UFs mostrando quem lidera, e tabela por UF ordenável.
+- **Evolução ao longo da apuração:** gráfico de linhas com o percentual dos três primeiros colocados, por horário ou por % das seções totalizadas, com dica ao passar o mouse, tocar ou usar as setas do teclado, e tabela equivalente. Existe para o Brasil e para cada UF.
 - **Governador e Senador:** tabela com todas as UFs e página de cada UF com o ranking completo (Senado com a linha das 2 vagas).
+- **Municípios:** busca pelo nome na página de cada UF; a página do município mostra Presidente, Governador e Senador ali.
 - **Avisos honestos:** apuração não iniciada, votação do Presidente ainda não liberada (antes das 17h de Brasília), "matematicamente definido", segundo turno, totalização final e dados desatualizados.
-- Tema claro/escuro, funciona no celular, sem dependências externas no navegador (nada de CDN).
+- **Responsivo:** celular, tablet e computador, com alvos de toque de 44 px; tema claro/escuro; sem dependências externas no navegador (nada de CDN); acessibilidade verificada com axe-core.
 - Cores dos candidatos estáveis durante a noite: a cor segue a pessoa, não a posição no ranking.
 
-Em desenvolvimento: municípios, deputados, gráfico de evolução e modo telão.
+Em desenvolvimento: deputados e modo telão.
+
+## Para a noite da apuração
+
+- **Ligue o painel antes da apuração começar.** O TSE só publica o estado atual; o gráfico de evolução existe porque o painel registra cada totalização que recebe (em `data/historico/`, e recarrega se reiniciar). Quem liga depois perde o começo da curva.
+- **Abrir no tablet ou no celular:** rode com `HOST=0.0.0.0` (PowerShell: `$env:HOST="0.0.0.0"; .venv\Scripts\python.exe run.py`), descubra o IP do computador com `ipconfig` e abra `http://<IP>:8000` no aparelho, na mesma rede Wi-Fi. O Windows pode pedir permissão no firewall na primeira vez.
+- O painel mostra "Ao vivo · atualizado há N s"; se o TSE parar de responder, ele avisa e segue mostrando o último dado recebido. Detalhes em `/status`.
 
 ## Como rodar
 

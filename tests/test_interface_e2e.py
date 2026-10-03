@@ -23,10 +23,10 @@ pytestmark = pytest.mark.e2e
 INTERVALO = "intervalo=2000"  # o navegador consulta a cada 2 s (mínimo permitido)
 
 
-@pytest.fixture(scope="module")
-def stack(tmp_path_factory):
+def montar_stack(tmp_path_factory, inicio):
+    """Sobe um simulador (parado em `inicio`) e um painel real consultando esse simulador."""
     logging.getLogger("werkzeug").setLevel(logging.ERROR)  # sem o log de cada requisição
-    sim = Simulacao(duracao_s=100000.0, inicio=0.5)
+    sim = Simulacao(duracao_s=100000.0, inicio=inicio)
     sim.pausar()
     simulador = make_server("127.0.0.1", 0, criar_app(sim), threaded=True)
     threading.Thread(target=simulador.serve_forever, daemon=True).start()
@@ -42,10 +42,29 @@ def stack(tmp_path_factory):
     while time.monotonic() < limite and len(store.itens()) < 88:
         time.sleep(0.2)
     assert len(store.itens()) == 88, "o poller não carregou todos os arquivos do simulador"
-    yield SimpleNamespace(sim=sim, url=f"http://127.0.0.1:{painel.server_port}", app=app)
-    app.extensions["poller"].parar()
-    painel.shutdown()
-    simulador.shutdown()
+    pilha = SimpleNamespace(sim=sim, url=f"http://127.0.0.1:{painel.server_port}", app=app)
+
+    def encerrar():
+        app.extensions["poller"].parar()
+        painel.shutdown()
+        simulador.shutdown()
+
+    return pilha, encerrar
+
+
+@pytest.fixture(scope="module")
+def stack(tmp_path_factory):
+    pilha, encerrar = montar_stack(tmp_path_factory, 0.5)
+    yield pilha
+    encerrar()
+
+
+@pytest.fixture(scope="module")
+def stack_grafico(tmp_path_factory):
+    """Pilha à parte, com histórico próprio: o gráfico depende de uma sequência de totalizações."""
+    pilha, encerrar = montar_stack(tmp_path_factory, 0.0)
+    yield pilha
+    encerrar()
 
 
 @pytest.fixture(autouse=True)
@@ -54,6 +73,13 @@ def restaurar_simulacao(stack):
     stack.sim.ir_para(0.5)
     stack.sim.dv_presidente = True
     stack.sim.falha_status, stack.sim.falha_ate = None, 0.0
+
+
+def avancar_apuracao(pilha, passos, espera=1.4):
+    """Leva a apuração simulada por `passos` (frações de 0 a 1); cada passo gera um ponto novo no histórico."""
+    for x in passos:
+        pilha.sim.ir_para(x)
+        time.sleep(espera)  # o poller (escala 0,05) consulta o arquivo nacional a cada ~1 s
 
 
 @pytest.fixture(scope="module")
@@ -72,8 +98,12 @@ def abrir(navegador, stack):
     """Abre uma página do painel e devolve (page, mensagens_de_erro). Fecha o contexto no fim."""
     contextos = []
 
-    def _abrir(caminho="/", *, largura=1280, altura=900, esquema="light", sep="?"):
-        ctx = navegador.new_context(viewport={"width": largura, "height": altura}, color_scheme=esquema, locale="pt-BR", timezone_id="America/Sao_Paulo")
+    def _abrir(caminho="/", *, largura=1280, altura=900, esquema="light", sep="?", pilha=None, toque=False):
+        alvo = pilha or stack
+        ctx = navegador.new_context(
+            viewport={"width": largura, "height": altura}, color_scheme=esquema, locale="pt-BR", timezone_id="America/Sao_Paulo",
+            is_mobile=toque, has_touch=toque, device_scale_factor=2 if toque else 1,
+        )
         contextos.append(ctx)
         page = ctx.new_page()
         erros: list[str] = []
@@ -81,7 +111,7 @@ def abrir(navegador, stack):
         page.on("pageerror", lambda e: erros.append(f"pageerror: {e}"))
         page.on("requestfailed", lambda r: erros.append(f"requestfailed: {r.url}"))
         page.on("response", lambda r: erros.append(f"http {r.status}: {r.url}") if r.status >= 400 else None)
-        page.goto(f"{stack.url}{caminho}{sep}{INTERVALO}", wait_until="networkidle")
+        page.goto(f"{alvo.url}{caminho}{sep}{INTERVALO}", wait_until="networkidle")
         return page, erros
 
     yield _abrir
@@ -329,6 +359,196 @@ def test_acessibilidade_sem_violacoes_do_axe(navegador, stack, esquema, progress
             assert not violacoes, f"{esquema} {caminho} @{progresso}:\n" + "\n".join(resumo)
     finally:
         ctx.close()
+
+
+# ---- gráfico de evolução ----------------------------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def grafico_pronto(stack_grafico):
+    """Pilha com histórico suficiente (≥ 6 totalizações) para o gráfico desenhar linhas."""
+    historico = stack_grafico.app.extensions["servico"].historico
+    if len(historico.serie("u:6257:1:br")) < 6:
+        avancar_apuracao(stack_grafico, [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
+    return stack_grafico
+
+
+def test_grafico_ciclo_de_vida_vazio_um_ponto_e_linhas(abrir, stack_grafico):
+    page, erros = abrir("/", pilha=stack_grafico)
+    esperar(page, "document.querySelector('.grafico .vazio') && !document.querySelector('.grafico .vazio').hidden")
+    assert "primeiras urnas" in page.locator(".grafico .vazio").inner_text()  # nada apurado: só explica
+    assert page.locator(".grafico svg").count() == 0
+    avancar_apuracao(stack_grafico, [0.2])
+    esperar(page, "document.querySelector('.grafico .vazio').textContent.includes('segunda atualização')", timeout=30000)
+    avancar_apuracao(stack_grafico, [0.3, 0.4, 0.5])
+    esperar(page, "document.querySelectorAll('.grafico svg path.serie').length === 3", timeout=40000)
+    assert page.locator(".grafico .vazio").is_hidden()
+    assert erros == []
+
+
+def test_grafico_mostra_tres_linhas_legenda_pontas_e_cores_do_ranking(abrir, grafico_pronto):
+    page, erros = abrir("/", pilha=grafico_pronto)
+    esperar(page, "document.querySelectorAll('.grafico svg path.serie').length === 3")
+    assert page.locator(".grafico .ponto-final").count() == 3
+    legenda = page.eval_on_selector_all(".grafico .legenda-linhas li", "els => els.map(e => e.textContent.trim())")
+    assert len(legenda) == 3 and legenda[0].startswith("ALFA") and "%" in legenda[0]
+    cores_linhas = page.eval_on_selector_all(".grafico path.serie", "els => els.map(e => e.dataset.cor)")
+    cores_ranking = page.eval_on_selector_all(".cand", "els => els.slice(0, 3).map(e => e.querySelector('.barra-preench').dataset.cor)")
+    assert cores_linhas == cores_ranking == ["1", "2", "3"]  # a mesma cor da pessoa no ranking, no mapa e no gráfico
+    assert page.locator(".grafico .rotulo-fim").count() == 3  # tela larga: rótulos diretos nas pontas
+    eixo_y = page.eval_on_selector_all(".grafico .grade .eixo-txt", "els => els.map(e => e.textContent)")
+    assert eixo_y and all(t.endswith("%") and int(t[:-1]) % 5 == 0 for t in eixo_y)  # números redondos nas duas pontas do eixo
+    assert page.locator(".grafico svg").get_attribute("aria-label").startswith("Evolução do percentual dos votos desde")
+    assert page.locator(".grafico-area").get_attribute("tabindex") == "0"  # alcançável pelo teclado
+    assert erros == []
+
+
+def test_grafico_hover_mostra_dica_com_as_tres_linhas_e_mira(abrir, grafico_pronto):
+    page, _ = abrir("/", pilha=grafico_pronto)
+    esperar(page, "document.querySelectorAll('.grafico svg path.serie').length === 3")
+    page.locator(".grafico").scroll_into_view_if_needed()
+    caixa = page.locator(".grafico .captura").bounding_box()
+    page.mouse.move(caixa["x"] + caixa["width"] * 0.5, caixa["y"] + caixa["height"] * 0.5)
+    assert page.locator("#dica").is_visible()
+    assert page.locator("#dica .dica-linha").count() == 3 and "das seções" in page.locator("#dica .dica-titulo").inner_text()
+    assert page.locator("#dica .dica-linha b").first.inner_text().endswith("%")  # o valor lidera; o nome vem depois
+    assert page.locator(".grafico .mira").get_attribute("visibility") == "visible"
+    assert page.locator(".grafico .ponto-mira[visibility=visible]").count() == 3
+    page.mouse.move(5, 5)
+    assert page.locator("#dica").is_hidden() and page.locator(".grafico .mira").get_attribute("visibility") == "hidden"
+
+
+def test_grafico_teclado_percorre_os_momentos(abrir, grafico_pronto):
+    page, _ = abrir("/", pilha=grafico_pronto)
+    esperar(page, "document.querySelectorAll('.grafico svg path.serie').length === 3")
+    page.locator(".grafico-area").focus()
+    page.keyboard.press("End")
+    ultimo = page.locator("#dica .dica-titulo").inner_text()
+    page.keyboard.press("Home")
+    primeiro = page.locator("#dica .dica-titulo").inner_text()
+    assert page.locator("#dica").is_visible() and primeiro != ultimo
+    page.keyboard.press("ArrowRight")
+    assert page.locator("#dica .dica-titulo").inner_text() != primeiro
+    page.keyboard.press("Escape")
+    assert page.locator("#dica").is_hidden()
+
+
+def test_grafico_alterna_eixo_e_tabela_equivalente(abrir, grafico_pronto):
+    page, _ = abrir("/", pilha=grafico_pronto)
+    esperar(page, "document.querySelectorAll('.grafico svg path.serie').length === 3")
+    horas = page.eval_on_selector_all(".grafico .eixo-x text", "els => els.map(e => e.textContent)")
+    assert horas and all(":" in t for t in horas)  # eixo de horário
+    page.get_by_role("button", name="% das seções").click()
+    secoes = page.eval_on_selector_all(".grafico .eixo-x text", "els => els.map(e => e.textContent)")
+    assert secoes[0] == "0%" and secoes[-1] == "100%"
+    pontos = page.evaluate("fetch('/api/v1/historico/presidente/br').then(r => r.json()).then(d => d.total_pontos)")
+    page.get_by_role("button", name="Ver como tabela").click()
+    assert page.locator(".grafico-tabela").is_visible() and page.locator(".grafico-area").is_hidden()
+    assert page.locator(".grafico-tabela tbody tr").count() == pontos >= 6
+    assert page.eval_on_selector_all(".grafico-tabela thead th", "els => els.map(e => e.textContent)")[:3] == ["Horário", "Seções totalizadas", "ALFA"]
+    page.get_by_role("button", name="Ver como gráfico").click()
+    assert page.locator(".grafico-area").is_visible() and page.locator(".grafico-tabela").is_hidden()
+
+
+def test_grafico_nas_paginas_das_ufs_so_consulta_a_aba_visivel(abrir, grafico_pronto):
+    page, _ = abrir("/uf/sp", pilha=grafico_pronto)
+    esperar(page, "document.querySelectorAll('[role=tab]').length === 3")
+    esperar(page, "document.querySelectorAll('#painel-presidente .grafico').length === 1")
+    assert page.locator("#painel-governador .grafico").count() == 1 and page.locator("#painel-senador .grafico").count() == 1
+    pedidos = []
+    page.on("request", lambda r: pedidos.append(r.url) if "/api/v1/historico/" in r.url else None)
+    page.get_by_role("tab", name="Senador").click()
+    page.wait_for_timeout(2500)
+    assert any("/historico/senador/sp" in u for u in pedidos)
+    assert not any("/historico/governador/" in u for u in pedidos)  # abas ocultas não geram requisições
+
+
+def test_grafico_no_celular_cabe_na_tela_e_responde_ao_toque(abrir, grafico_pronto):
+    page, erros = abrir("/", largura=390, altura=844, toque=True, pilha=grafico_pronto)
+    esperar(page, "document.querySelectorAll('.grafico svg path.serie').length === 3")
+    page.locator(".grafico").scroll_into_view_if_needed()
+    assert page.locator(".grafico .rotulo-fim").count() == 0  # tela estreita: a legenda carrega a identificação
+    assert page.locator(".grafico .legenda-linhas li").count() == 3
+    svg = page.locator(".grafico svg").bounding_box()
+    assert svg["x"] >= 0 and svg["x"] + svg["width"] <= 390
+    assert page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth") <= 0
+    caixa = page.locator(".grafico .captura").bounding_box()
+    page.touchscreen.tap(caixa["x"] + caixa["width"] * 0.5, caixa["y"] + caixa["height"] * 0.5)
+    assert page.locator("#dica").is_visible()  # a leitura continua depois de tirar o dedo
+    assert page.locator("#dica .dica-linha").count() == 3
+    page.touchscreen.tap(195, 20)  # toque fora do gráfico fecha a dica
+    page.wait_for_timeout(200)
+    assert page.locator("#dica").is_hidden()
+    assert erros == []
+
+
+def test_no_toque_a_dica_do_ranking_e_ignorada(abrir):
+    page, _ = abrir("/", largura=390, altura=844, toque=True)
+    esperar(page, "document.querySelectorAll('.cand').length === 6")
+    page.locator(".cand").first.tap()
+    page.wait_for_timeout(300)
+    assert page.locator("#dica").is_hidden()  # no toque a informação já está na linha; nada de dica "grudada"
+
+
+@pytest.mark.parametrize("esquema", ["light", "dark"])
+def test_acessibilidade_da_pagina_com_grafico(navegador, grafico_pronto, esquema):
+    axe_pw = pytest.importorskip("axe_playwright_python.sync_playwright")
+    ctx = navegador.new_context(viewport={"width": 1280, "height": 900}, color_scheme=esquema, locale="pt-BR", bypass_csp=True)
+    try:
+        page = ctx.new_page()
+        page.goto(f"{grafico_pronto.url}/?{INTERVALO}", wait_until="networkidle")
+        esperar(page, "document.querySelectorAll('.grafico svg path.serie').length === 3")
+        page.wait_for_timeout(1500)
+        violacoes = axe_pw.Axe().run(page).response["violations"]
+        resumo = [f"{v['id']} [{v['impact']}] {v['help']}: " + "; ".join(str(n['target']) for n in v["nodes"][:3]) for v in violacoes]
+        assert not violacoes, "\n".join(resumo)
+    finally:
+        ctx.close()
+
+
+# ---- responsividade: celular, tablet e telas grandes ---------------------------------------------------------------
+TELAS = [(360, 740, True), (390, 844, True), (600, 960, True), (768, 1024, True), (820, 1180, True), (1024, 768, True), (1280, 900, False)]
+
+ALVOS_DE_TOQUE = """() => {
+  const seletores = ['.aba', '#btn-tema', '#sel-uf', '.seg button', '.btn-texto', '[role=tab]', '.th-botao', '.turnos a', '#busca-mun'];
+  const pequenos = [];
+  for (const s of seletores) for (const el of document.querySelectorAll(s)) {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) continue;
+    if (r.height < 43.5 || r.width < 43.5) pequenos.push(`${s} ${Math.round(r.width)}x${Math.round(r.height)}`);
+  }
+  return pequenos;
+}"""
+
+
+@pytest.mark.parametrize("largura, altura, toque", TELAS)
+def test_responsivo_sem_rolagem_horizontal_e_com_alvos_de_toque_adequados(abrir, largura, altura, toque):
+    codigo = Simulacao.codigo_municipio("sp", 0)
+    for caminho in ("/", "/uf/sp", "/senadores", f"/municipio/sp/{codigo:05d}"):
+        page, erros = abrir(caminho, largura=largura, altura=altura, toque=toque)
+        esperar(page, "document.querySelectorAll('.cand, .tabela tbody tr').length > 3")
+        page.wait_for_timeout(800)
+        sobra = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+        assert sobra <= 0, f"{caminho} em {largura}px tem {sobra}px de rolagem horizontal"
+        if toque:
+            assert page.evaluate("matchMedia('(pointer: coarse)').matches")
+            assert page.evaluate(ALVOS_DE_TOQUE) == [], f"{caminho} em {largura}px: alvos de toque menores que 44 px"
+        assert erros == [], f"{caminho} em {largura}px: {erros}"
+
+
+def test_layout_celular_empilha_e_tablet_poe_lado_a_lado(abrir):
+    esperar_tudo = "document.querySelectorAll('.cand').length === 6 && document.querySelectorAll('.bloco').length === 28"
+    # celular: ranking em cima do mapa; o 5º indicador ocupa a linha inteira
+    page, _ = abrir("/", largura=390, altura=844, toque=True)
+    esperar(page, esperar_tudo)
+    ranking, mapa = page.locator(".duas-colunas > .cartao").nth(0).bounding_box(), page.locator(".duas-colunas > .cartao").nth(1).bounding_box()
+    assert mapa["y"] > ranking["y"] + ranking["height"] - 1 and abs(ranking["width"] - mapa["width"]) < 2
+    kpis = [k.bounding_box() for k in page.locator(".kpi").all()]
+    assert abs(kpis[0]["y"] - kpis[1]["y"]) < 2 and kpis[4]["width"] > kpis[0]["width"] * 1.8 and kpis[4]["y"] > kpis[2]["y"]
+    # tablet em retrato: ranking e mapa lado a lado; os 5 indicadores numa linha só
+    page, _ = abrir("/", largura=768, altura=1024, toque=True)
+    esperar(page, esperar_tudo)
+    ranking, mapa = page.locator(".duas-colunas > .cartao").nth(0).bounding_box(), page.locator(".duas-colunas > .cartao").nth(1).bounding_box()
+    assert abs(ranking["y"] - mapa["y"]) < 2 and mapa["x"] > ranking["x"] + ranking["width"] - 1
+    assert len({round(k.bounding_box()["y"]) for k in page.locator(".kpi").all()}) == 1
 
 
 # ---- celular ------------------------------------------------------------------------------------------------

@@ -16,6 +16,7 @@ from typing import Any
 from .catalog import Alvo, Disputa, disputas_ativas
 from .config import Settings
 from .cores import Cores
+from .historico import Historico, amostrar
 from .store import Snapshot, Store, chave
 from .tse.dominio import BRASIL, CARGO_POR_SLUG, UF_NOMES, UFS, nome_abrangencia
 from .tse.parse import BRT, sem_acentos
@@ -38,11 +39,12 @@ def _iso_epoch(epoch: float | None) -> str | None:
 
 
 class Servico:
-    def __init__(self, settings: Settings, store: Store, *, poller=None, cores: Cores | None = None):
+    def __init__(self, settings: Settings, store: Store, *, poller=None, cores: Cores | None = None, historico: Historico | None = None):
         self.cfg = settings
         self.store = store
         self.poller = poller
         self.cores = cores or Cores()
+        self.historico = historico or Historico()
         self._cache_disputas: tuple[str, list[Disputa]] = ("", [])
         self._cache_municipios: tuple[tuple, dict] = ((), {})
         self._fotos_validas: set[tuple[int, str, str]] = set()  # (eleição, escopo, sqcand) conhecidos
@@ -64,6 +66,8 @@ class Servico:
                 self.escopo_cores(r["ele"], cargo["cd"], abr["codigo"]), r["candidatos"],
                 pct_secoes=r["secoes"].get("pst", {}).get("n", 0.0),
             )
+        if cargo["cd"] in (1, 3, 5):  # BR e UFs; municípios não têm histórico
+            self.historico.registrar(snap.chave, r)
 
     @staticmethod
     def escopo_cores(ele: str | int, cargo: int, uf: str) -> str:
@@ -231,6 +235,38 @@ class Servico:
                 "disponivel": snap is not None, "resultado": self._resultado(snap, d, uf) if snap else None,
             })
         return {"uf": uf, "nome": UF_NOMES[uf], "turno": turno, "turnos": self.turnos(), "disputas": disputas_uf}
+
+    # ---- evolução ao longo da apuração ---------------------------------------------------------------------------
+    def evolucao(self, slug: str, abr: str, turno: int | None = None, n: int = 3) -> dict[str, Any]:
+        """Percentual dos `n` primeiros colocados a cada totalização registrada (os do último ponto)."""
+        d = self.disputa(slug, turno)
+        abr = abr.lower()
+        if d is None or (abr == BRASIL and not d.nacional) or (abr != BRASIL and abr not in d.ufs):
+            raise NaoEncontrado("disputa ou abrangência sem histórico")
+        k = chave("u", d.ele, d.cargo.cd, abr)
+        pontos = self.historico.serie(k)
+        saida: dict[str, Any] = {
+            "slug": slug, "nome": d.cargo.nome, "abr": abr, "turno": d.turno, "ele": d.ele, "n": n,
+            "total_pontos": len(pontos), "desde": pontos[0]["t"] if pontos else None, "pontos": [], "series": [],
+        }
+        if not pontos:
+            return saida
+        amostra = amostrar(pontos, 600)
+        saida["pontos"] = [{"t": p["t"], "st": p["st"], "pst": p["pst"]} for p in amostra]
+        snap = self.store.get(k)
+        nomes = {c["sq"]: c for c in snap.dados["candidatos"]} if snap else {}
+        ultimo = pontos[-1]["c"]
+        lideres = sorted(ultimo, key=lambda sq: -ultimo[sq][0])[:n]
+        escopo = self.escopo_cores(d.ele, d.cargo.cd, abr)
+        for sq in lideres:
+            c = nomes.get(sq, {})
+            saida["series"].append({
+                "sq": sq, "urna": c.get("urna", sq), "numero": c.get("numero", ""), "partido": c.get("partido", ""),
+                "cor": self.cores.slot(escopo, sq),
+                "pct": [p["c"].get(sq, [0, None])[1] if sq in p["c"] else None for p in amostra],
+                "votos": [p["c"][sq][0] if sq in p["c"] else None for p in amostra],
+            })
+        return saida
 
     # ---- municípios -------------------------------------------------------------------------------------------
     def _municipios_por_uf(self) -> dict[str, dict[str, dict]]:

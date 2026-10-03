@@ -38,7 +38,7 @@ export class Atualizador {
   }
 
   async buscar() {
-    if (this.carregando) return;
+    if (this.carregando || this.pausado) return; // `pausado`: ex.: aba/gráfico fora da tela
     this.carregando = true;
     try {
       const resp = await fetch(this.url, { headers: { Accept: "application/json" } });

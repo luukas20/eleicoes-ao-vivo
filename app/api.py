@@ -94,6 +94,23 @@ def uf(uf: str):
     return responder(dados) if dados else erro("UF desconhecida", 404)
 
 
+@bp.get("/historico/<slug>/<abr>")
+def historico(slug: str, abr: str):
+    """Evolução do percentual dos primeiros colocados (`?n=3`, de 1 a 5) desde que o painel começou a registrar."""
+    turno, falha = _turno()
+    if falha:
+        return falha
+    bruto = request.args.get("n", "3")
+    if bruto not in ("1", "2", "3", "4", "5"):
+        return erro("n deve ser de 1 a 5", 400)
+    if slug not in ("presidente", "governador", "senador"):
+        return erro("cargo sem histórico", 404)
+    try:
+        return responder(servico().evolucao(slug, abr, turno, int(bruto)))
+    except NaoEncontrado as ex:
+        return erro(str(ex), 404)
+
+
 @bp.get("/municipios")
 def municipios():
     """Busca de municípios de uma UF pelo nome (`?uf=sp&q=sao`); sem `q`, devolve a capital."""

@@ -6,6 +6,7 @@ from flask import Flask
 from .config import Settings
 from .cores import Cores
 from .fotos import FotoCache
+from .historico import Historico
 from .poller import Poller
 from .servico import Servico
 from .store import Store
@@ -33,7 +34,11 @@ def create_app(
     store = store or Store()
     client = client or TseClient(user_agent=settings.user_agent, max_rps=settings.max_rps, workers=settings.workers)
     poller = Poller(settings, client, store)
-    servico = Servico(settings, store, poller=poller, cores=Cores(settings.data_dir / "cores.json"))
+    servico = Servico(
+        settings, store, poller=poller,
+        cores=Cores(settings.data_dir / "cores.json"),
+        historico=Historico(settings.data_dir / "historico" / settings.ambiente),  # simulado e oficial nunca se misturam
+    )
     app.extensions.update(
         settings=settings, store=store, poller=poller, servico=servico,
         fotos=FotoCache(settings.data_dir / "fotos", client),

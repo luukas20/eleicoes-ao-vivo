@@ -2,6 +2,7 @@
 import { Atualizador } from "./net.js";
 import { Casca } from "./ui.js";
 import { Avisos, Heroi, Kpis, Legenda, Mapa, Ranking, TabelaUfs, avisosDoResultado } from "./componentes.js";
+import { GraficoEvolucao } from "./grafico.js";
 
 const casca = new Casca();
 const turno = new URLSearchParams(window.location.search).get("turno");
@@ -21,6 +22,14 @@ document.getElementById("slot-ranking").append(ranking.el);
 document.getElementById("slot-mapa").append(mapa.el);
 document.getElementById("slot-legenda").append(legenda.el);
 document.getElementById("slot-tabela").append(tabela.el);
+
+const grafico = new GraficoEvolucao({
+  url: `/api/v1/historico/presidente/br${consulta}`,
+  titulo: "Evolução do percentual dos três primeiros",
+  metaCinquenta: true,
+});
+document.getElementById("slot-grafico").append(grafico.el);
+grafico.definirAtivo(true);
 
 new Atualizador({
   url: `/api/v1/presidente${consulta}`,
