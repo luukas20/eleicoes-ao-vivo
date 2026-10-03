@@ -1,0 +1,65 @@
+[
+  {
+    "descricao": "EA11 configuração de eleições",
+    "url": "https://resultados.tse.jus.br/oficial/comum/config/ele-c.json",
+    "arquivo": "oficial/comum/config/ele-c.json",
+    "capturado_em": "2026-10-03T13:27:11+00:00",
+    "bytes": 22749,
+    "sha256": "c9a7f970cd88dd6f59c55e6f89a2c785f6ad6e5d172ccf072f0858104c75aa71",
+    "etag": "\"6408eac324a0999f9d73e84918ce8c20\""
+  },
+  {
+    "descricao": "EA14 acompanhamento Brasil",
+    "url": "https://resultados.tse.jus.br/oficial/ele2026/6257/dados/br/br-e006257-ab.json",
+    "arquivo": "oficial/ele2026/6257/dados/br/br-e006257-ab.json",
+    "capturado_em": "2026-10-03T13:27:11+00:00",
+    "bytes": 26759,
+    "sha256": "0199f9bc291e36cb30e0220750cef983c8b58a50cdbac79940dec2d119195f28",
+    "etag": "\"5eb358d8c18518ab77879c9cb8f95147\""
+  },
+  {
+    "descricao": "EA20 Presidente BR",
+    "url": "https://resultados.tse.jus.br/oficial/ele2026/6257/dados/br/br-c0001-e006257-u.json",
+    "arquivo": "oficial/ele2026/6257/dados/br/br-c0001-e006257-u.json",
+    "capturado_em": "2026-10-03T13:27:12+00:00",
+    "bytes": 8402,
+    "sha256": "c12ef51ded376075cad3ae3cec21c5ad60713536d0d269ea7e05032b18fbbe79",
+    "etag": "\"b3482249ecbd4d650cc1a45e420d931b\""
+  },
+  {
+    "descricao": "EA20 Presidente BR (assinado)",
+    "url": "https://resultados.tse.jus.br/oficial/ele2026/6257/dados/br/br-c0001-e006257-u.jws",
+    "arquivo": "oficial/ele2026/6257/dados/br/br-c0001-e006257-u.jws",
+    "capturado_em": "2026-10-03T13:27:13+00:00",
+    "bytes": 11377,
+    "sha256": "cafef5452d7d0f9d7ce4fe1e940123e27bfdf59fee0edeceec001c487d7061a2",
+    "etag": "\"70ccdc2f584b89805ba6639a696ecf34\""
+  },
+  {
+    "descricao": "EA20 Presidente exterior",
+    "url": "https://resultados.tse.jus.br/oficial/ele2026/6257/dados/zz/zz-c0001-e006257-u.json",
+    "arquivo": "oficial/ele2026/6257/dados/zz/zz-c0001-e006257-u.json",
+    "capturado_em": "2026-10-03T13:27:13+00:00",
+    "bytes": 8522,
+    "sha256": "e43f87356a4e09222f5758419e59c609fe42785cebcb670bebe602e86234a57e",
+    "etag": "\"6109b590b6516584db8c445c4bf56d7a\""
+  },
+  {
+    "descricao": "EA20 Presidente São Paulo (município)",
+    "url": "https://resultados.tse.jus.br/oficial/ele2026/6257/dados/sp/sp71072-c0001-e006257-u.json",
+    "arquivo": "oficial/ele2026/6257/dados/sp/sp71072-c0001-e006257-u.json",
+    "capturado_em": "2026-10-03T13:27:14+00:00",
+    "bytes": 8529,
+    "sha256": "72994f9d242fe30959029c89e9554fac3d9211ce6a089d2daf9c1ea718b94637",
+    "etag": "\"89ee9f8c31dd25035812ffe8c13a0d59\""
+  },
+  {
+    "descricao": "EA20 Governador SP",
+    "url": "https://resultados.tse.jus.br/oficial/ele2026/6259/dados/sp/sp-c0003-e006259-u.json",
+    "arquivo": "oficial/ele2026/6259/dados/sp/sp-c0003-e006259-u.json",
+    "capturado_em": "2026-10-03T13:27:15+00:00",
+    "bytes": 4693,
+    "sha256": "146d0d61b64e64753639d016216ea3b7f2239803654495bab271ef7a47c00e6a",
+    "etag": "\"452893f847e780b240ff8e5adc1f804c\""
+  }
+]

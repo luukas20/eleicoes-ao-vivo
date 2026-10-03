@@ -1,6 +1,9 @@
 # Normaliza finais de linha: o repositório guarda LF; o Git converte conforme o sistema
 * text=auto
 
+# Fixtures reais do TSE: exatamente como recebidos (o .jws assinado não pode ser alterado)
+tests/fixtures/** -text
+
 # Binários
 *.pdf binary
 *.jpg binary

@@ -4,7 +4,17 @@ Painel **não oficial** de acompanhamento ao vivo da apuração das eleições b
 
 > **Aviso:** projeto independente, sem vínculo com o Tribunal Superior Eleitoral. Os números são exibidos como publicados pelo TSE, sem alteração de conteúdo (Resolução TSE nº 23.751/2026, art. 267, §4º). Para resultados oficiais, consulte sempre o TSE.
 
-**Status:** em construção (Fase 0 — estrutura inicial). Ainda não há aplicação para rodar.
+**Status:** em construção. O núcleo de acesso ao feed do TSE (montagem de URLs, cliente HTTP com limite de taxa e interpretação dos arquivos) está pronto e testado; o painel web ainda está em desenvolvimento, então ainda não há aplicação para rodar.
+
+## Desenvolvimento
+
+```powershell
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.venv\Scripts\python.exe -m pytest
+```
+
+Os testes usam arquivos reais do TSE capturados antes da eleição (`tests/fixtures/`, sem alteração) e dados sintéticos; nenhum teste acessa a rede por padrão (`pytest -m live` reservado para testes contra o feed real). Para recapturar os fixtures com poucas requisições: `python -m tools.capture`.
 
 ## Como vai funcionar
 
