@@ -223,15 +223,17 @@ class Poller:
 
         if r.status == 200:
             bruto = parse.decodificar(r.body)
-            idg = str(bruto.get("idg", "")) or "sha1:" + hashlib.sha1(r.body).hexdigest()
+            # O que decide se há dado novo é o CONTEÚDO (hash dos bytes), não o `idg`: se o TSE regenerar o
+            # arquivo sem trocar o identificador, o painel não pode ficar parado em dado velho.
+            huella = hashlib.sha1(r.body).hexdigest()
             e.etag = r.etag or e.etag
             e.last_modified = r.last_modified or e.last_modified
             atual = self.store.get(e.alvo.chave)
-            mudou = atual is None or atual.idg != idg
+            mudou = atual is None or atual.conteudo_hash != huella
             if mudou:
                 self.store.guardar(
                     e.alvo.chave, e.alvo.tipo, PARSERS[e.alvo.tipo](bruto),
-                    idg=idg, etag=r.etag, url=e.alvo.url, meta=e.alvo.meta,
+                    idg=str(bruto.get("idg", "")), etag=r.etag, url=e.alvo.url, meta=e.alvo.meta, conteudo_hash=huella,
                 )
             else:
                 self.store.confirmar(e.alvo.chave, etag=r.etag)

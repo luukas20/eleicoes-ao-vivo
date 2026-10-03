@@ -118,6 +118,33 @@ def test_nova_geracao_guarda_e_volta_ao_piso(cenario):
     assert estado.intervalo == 8  # mudou: volta ao piso
 
 
+def test_conteudo_novo_com_o_mesmo_idg_tambem_e_guardado(cenario):
+    """Se o TSE regenerar o arquivo sem trocar o `idg`, o painel não pode ficar parado em dado velho."""
+    cenario.avancar(1000)
+    url = URLS.resultado(6257, 1, "br")
+    versao = cenario.store.versao
+    novo = json.loads(cenario.cliente.arquivos[url].decode("utf-8"))
+    novo["and"], novo["hg"] = "p", "20:15:00"  # mesmo idg "1026910", conteúdo diferente
+    assert novo["idg"] == "1026910"
+    cenario.cliente.arquivos[url] = json.dumps(novo).encode("utf-8")
+    cenario.avancar(25)
+    snap = cenario.store.get(BR)
+    assert snap.dados["estado"]["andamento"] == "p" and cenario.store.versao == versao + 1
+
+
+def test_200_com_os_mesmos_bytes_so_confirma_e_nao_conta_como_mudanca(cenario):
+    """Servidor que ignora o GET condicional e devolve 200 igual: nada mudou de verdade."""
+    cenario.avancar(1000)
+    versao, estado = cenario.store.versao, cenario.poller._estados[BR]
+    url = URLS.resultado(6257, 1, "br")
+    corpo = cenario.cliente.arquivos[url]
+    cenario.cliente.override[url] = Response(url, 200, body=corpo, etag='"outro-etag"')
+    estado.intervalo = 12
+    cenario.avancar(25)
+    assert cenario.store.versao == versao  # não repete o parse nem notifica
+    assert estado.intervalo > 12  # e recua como numa resposta 304
+
+
 def test_max_age_do_cdn_e_respeitado_ate_o_teto(cenario):
     cenario.cliente.max_age = 15
     cenario.avancar(1000)

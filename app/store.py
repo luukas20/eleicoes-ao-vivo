@@ -36,6 +36,7 @@ class Snapshot:
     meta: dict = field(default_factory=dict)
     obtido_em: float = 0.0  # epoch: última confirmação (200 ou 304)
     mudou_em: float = 0.0  # epoch: última vez que o conteúdo mudou
+    conteudo_hash: str = ""  # SHA-1 dos bytes recebidos: é ele (e não o `idg`) que decide se mudou
 
 
 class Store:
@@ -66,10 +67,13 @@ class Store:
         with self._lock:
             return [s for k, s in self._itens.items() if k.startswith(prefixo)]
 
-    def guardar(self, k: str, tipo: str, dados: Any, *, idg: str, etag: str | None, url: str, meta: dict | None = None) -> Snapshot:
-        """Guarda um conteúdo novo (200 com `idg` diferente do anterior ou primeira carga)."""
+    def guardar(
+        self, k: str, tipo: str, dados: Any, *, idg: str, etag: str | None, url: str,
+        meta: dict | None = None, conteudo_hash: str = "",
+    ) -> Snapshot:
+        """Guarda um conteúdo novo (200 com bytes diferentes dos anteriores, ou primeira carga)."""
         agora = self._relogio()
-        snap = Snapshot(k, tipo, dados, idg, etag, url, meta or {}, obtido_em=agora, mudou_em=agora)
+        snap = Snapshot(k, tipo, dados, idg, etag, url, meta or {}, obtido_em=agora, mudou_em=agora, conteudo_hash=conteudo_hash)
         with self._lock:
             self._itens[k] = snap
             self._versao += 1
@@ -88,7 +92,7 @@ class Store:
                 return
             self._itens[k] = Snapshot(
                 atual.chave, atual.tipo, atual.dados, atual.idg, etag or atual.etag, atual.url, atual.meta,
-                obtido_em=self._relogio(), mudou_em=atual.mudou_em,
+                obtido_em=self._relogio(), mudou_em=atual.mudou_em, conteudo_hash=atual.conteudo_hash,
             )
 
     def idade_maxima(self, prefixo: str = "") -> float | None:
