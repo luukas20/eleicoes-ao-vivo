@@ -152,6 +152,111 @@ def test_final_da_apuracao_marca_eleitos_e_segundo_turno(novo_app):
     assert [c["eleito"] for c in sen["candidatos"]][:3] == [True, True, False]
 
 
+# ---- municípios ---------------------------------------------------------------------------------------
+def test_busca_de_municipios_ignora_acentos_e_prioriza_o_inicio_do_nome(novo_app):
+    app, _, _ = novo_app(0.5)
+    c = app.test_client()
+    r = json_de(c.get("/api/v1/municipios?uf=sp&q=sao%20pa"))
+    assert r["resultados"][0]["nome"].startswith("SÃO PAULO") and r["resultados"][0]["capital"] is True
+    assert json_de(c.get("/api/v1/municipios?uf=sp&q=SAO%20PAULO"))["resultados"][0]["cd"] == r["resultados"][0]["cd"]  # caixa e acento
+    meio = json_de(c.get("/api/v1/municipios?uf=sp&q=simulado%202"))["resultados"]
+    assert len(meio) == 1 and "SIMULADO 2" in meio[0]["nome"]  # também acha no meio do nome
+    capital = json_de(c.get("/api/v1/municipios?uf=mg&q="))["resultados"]  # sem termo: sugere a capital
+    assert len(capital) == 1 and capital[0]["capital"] is True
+    assert json_de(c.get("/api/v1/municipios?uf=sp&q=xyzxyz"))["resultados"] == []
+
+
+@pytest.mark.parametrize("consulta, status", [
+    ("uf=xx&q=a", 404), ("uf=zz&q=a", 404), ("uf=&q=a", 404), ("uf=sp&q=" + "a" * 61, 400),
+])
+def test_busca_de_municipios_valida_a_entrada(novo_app, consulta, status):
+    app, _, _ = novo_app(0.5)
+    assert app.test_client().get(f"/api/v1/municipios?{consulta}").status_code == status
+
+
+def test_busca_sem_a_lista_do_tse_ainda_carregada_responde_503(tmp_path):
+    from app import create_app
+    from app.config import Settings
+
+    c = create_app(Settings(data_dir=tmp_path, iniciar_poller=False), iniciar_poller=False).test_client()
+    r = c.get("/api/v1/municipios?uf=sp&q=sao")
+    assert r.status_code == 503 and r.headers["Retry-After"] == "5"
+
+
+def test_pagina_do_municipio_pede_o_acompanhamento_e_so_aceita_codigos_do_ea12(novo_app):
+    from mock.gerador import Simulacao
+
+    app, store, _ = novo_app(0.6)
+    poller = app.extensions["poller"]
+    c = app.test_client()
+    codigo = f"{Simulacao.codigo_municipio('sp', 2):05d}"
+    d = json_de(c.get(f"/api/v1/municipio/sp/{codigo}"))
+    assert d["municipio"]["nome"] == "SÃO PAULO - MUNICIPIO SIMULADO 2" and d["municipio"]["capital"] is False and d["uf"] == "sp"
+    assert [x["slug"] for x in d["disputas"]] == ["presidente", "governador", "senador"]
+    assert not any(x["disponivel"] for x in d["disputas"])  # ainda não chegou nada: o poller acaba de ser acionado
+    pedidos = sorted(k for k, e in poller._estados.items() if e.expira_em is not None)
+    assert pedidos == [f"u:6257:1:sp:{int(codigo)}", f"u:6259:3:sp:{int(codigo)}", f"u:6259:5:sp:{int(codigo)}"]
+    assert all(poller._estados[k].alvo.camada == "sob_demanda" for k in pedidos)
+
+    # simula a chegada dos arquivos do município e confere o resultado e as cores (as do escopo da UF)
+    from app.tse import parse
+    from mock import gerador
+
+    sim = Simulacao(duracao_s=100.0, inicio=0.6)
+    sim.pausar()
+    for ele, cargo in ((6257, 1), (6259, 3), (6259, 5)):
+        dados = parse.parse_resultado(gerador.resultado(sim, ele, cargo, "sp", int(codigo)))
+        store.guardar(f"u:{ele}:{cargo}:sp:{int(codigo)}", "u", dados, idg=dados["idg"], etag=None, url="x")
+    d = json_de(c.get(f"/api/v1/municipio/sp/{codigo}"))
+    assert all(x["disponivel"] for x in d["disputas"])
+    pres = d["disputas"][0]["resultado"]
+    assert pres["abrangencia"] == {"tipo": "mu", "codigo": codigo, "nome": "SÃO PAULO - MUNICIPIO SIMULADO 2"}
+    assert [x["cor"] for x in pres["candidatos"] if x["cor"]] and all(x["foto"].startswith("/foto/6257/br/") for x in pres["candidatos"])
+    assert d["disputas"][1]["resultado"]["candidatos"][0]["foto"].startswith("/foto/6259/sp/")
+
+
+@pytest.mark.parametrize("caminho", [
+    "/api/v1/municipio/sp/99999",  # não está no EA12: nunca montamos essa URL (evita 404 em massa no TSE)
+    "/api/v1/municipio/sp/abc", "/api/v1/municipio/xx/10000", "/api/v1/municipio/zz/10000", "/api/v1/municipio/sp/..%2f10000",
+])
+def test_municipio_inexistente_nao_gera_alvo_no_poller(novo_app, caminho):
+    app, _, _ = novo_app(0.5)
+    r = app.test_client().get(caminho)
+    assert r.status_code == 404
+    assert not [k for k, e in app.extensions["poller"]._estados.items() if e.expira_em is not None]
+
+
+def test_limite_de_municipios_acompanhados_ao_mesmo_tempo(novo_app, tmp_path):
+    from app import create_app
+    from app.config import Settings
+    from app.store import Store
+    from app.tse.client import TokenBucket, TseClient
+    from mock.gerador import Simulacao
+    from tests.conftest import SessaoTSE
+
+    store = Store()
+    cliente = TseClient(user_agent="t", session=SessaoTSE(), bucket=TokenBucket(1000))
+    app = create_app(Settings(data_dir=tmp_path, iniciar_poller=False, max_sob_demanda=3), store=store, client=cliente, iniciar_poller=False)
+    popular_store(store, 0.5)
+    c = app.test_client()
+    # três alvos por município: o 1º município enche o limite de 3; o 2º não consegue entrar
+    assert c.get(f"/api/v1/municipio/sp/{Simulacao.codigo_municipio('sp', 0):05d}").status_code == 200
+    r = c.get(f"/api/v1/municipio/rj/{Simulacao.codigo_municipio('rj', 0):05d}")
+    assert r.status_code == 503 and "muitos municípios" in r.get_json()["erro"]
+    assert c.get(f"/api/v1/municipio/sp/{Simulacao.codigo_municipio('sp', 0):05d}").status_code == 200  # o já acompanhado segue
+
+
+def test_paginas_de_municipio_html(novo_app):
+    app, _, _ = novo_app(0.5)
+    c = app.test_client()
+    r = c.get("/municipio/sp/10300")
+    html = r.get_data(as_text=True)
+    assert r.status_code == 200 and 'data-codigo="10300"' in html and 'data-uf="sp"' in html
+    assert 'id="busca-mun"' in c.get("/uf/sp").get_data(as_text=True)
+    assert c.get("/municipio/sp/abc").status_code == 404 and c.get("/municipio/zz/00001").status_code == 404
+    assert 'data-codigo="00042"' in c.get("/municipio/sp/42").get_data(as_text=True)  # completa com zeros
+
+
 # ---- erros e segurança --------------------------------------------------------------------------------
 @pytest.mark.parametrize("caminho, status", [
     ("/api/v1/uf/xx", 404), ("/api/v1/uf/zz", 404), ("/api/v1/cargo/prefeito", 404), ("/api/v1/cargo/presidente", 404),

@@ -38,10 +38,25 @@ export class Casca {
     this.sub = document.getElementById("sub-topo");
     this.frescor = null;
     this.erroDeRede = false;
+    this.contexto = { fase: null, turno: null, turnos: [], data: null };
     iniciarTema();
     this.iniciarSeletorUf();
     this.pintarChip();
     setInterval(() => this.pintarChip(), 1000);
+    this.carregarMeta();
+  }
+
+  // fase (oficial/simulado) e data da eleição, uma vez só
+  carregarMeta() {
+    fetch("/api/v1/meta")
+      .then((r) => r.json())
+      .then((m) => this.atualizarContexto({ fase: m.fase, data: m.data }))
+      .catch(() => {});
+  }
+
+  atualizarContexto(parcial) {
+    this.contexto = { ...this.contexto, ...parcial };
+    this.definirContexto(this.contexto);
   }
 
   iniciarSeletorUf() {

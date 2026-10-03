@@ -1,6 +1,8 @@
 """Páginas HTML, proxy de fotos e verificação de saúde."""
 from __future__ import annotations
 
+import re
+
 from flask import Blueprint, Response, abort, current_app, render_template
 
 from .tse.dominio import UF_NOMES, UFS
@@ -37,6 +39,14 @@ def pagina_uf(uf: str):
     if uf not in UF_NOMES or uf == "zz":
         abort(404)
     return _contexto("uf", uf=uf, nome_uf=UF_NOMES[uf])
+
+
+@bp.get("/municipio/<uf>/<codigo>")
+def pagina_municipio(uf: str, codigo: str):
+    uf = uf.lower()
+    if uf not in UF_NOMES or uf == "zz" or not re.fullmatch(r"\d{1,5}", codigo):
+        abort(404)
+    return _contexto("municipio", uf=uf, nome_uf=UF_NOMES[uf], codigo=codigo.zfill(5))
 
 
 @bp.get("/governadores")

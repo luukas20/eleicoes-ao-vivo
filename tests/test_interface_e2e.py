@@ -205,6 +205,36 @@ def test_pagina_da_uf_troca_de_disputa_pelas_abas(abrir):
     assert erros == []
 
 
+def test_busca_de_municipio_leva_a_pagina_com_dados_consultados_sob_demanda(abrir):
+    page, erros = abrir("/uf/sp")
+    esperar(page, "document.querySelectorAll('[role=tab]').length === 3")
+    page.fill("#busca-mun", "capital")
+    esperar(page, "document.querySelectorAll('#res-mun li').length >= 1")
+    assert "SÃO PAULO" in page.locator("#res-mun a").first.inner_text()
+    assert page.locator("#aviso-busca").inner_text().endswith("encontrado(s).")
+    page.locator("#res-mun a").first.click()
+    page.wait_for_url("**/municipio/sp/**")
+    # o servidor só começa a consultar o TSE para este município agora; os dados chegam em segundos
+    esperar(page, "document.querySelectorAll('.cand').length > 0", timeout=30000)
+    assert "SÃO PAULO" in page.locator("#titulo-municipio").inner_text()
+    assert [b.inner_text() for b in page.locator("[role=tab]").all()] == ["Presidente", "Governador", "Senador"]
+    assert page.locator(".migalhas a").inner_text() == "São Paulo"
+    assert "SÃO PAULO" in page.title()
+    esperar(page, "document.querySelector('.heroi-num').textContent.trim() !== ''")
+    page.get_by_role("tab", name="Senador").click()
+    assert page.locator("#painel-senador .cand").count() == 5 and page.locator("#painel-senador .corte").inner_text() == "2 vagas"
+    assert erros == []
+
+
+def test_municipio_inexistente_mostra_aviso_sem_ficar_repetindo(abrir, stack):
+    page, _ = abrir("/municipio/sp/99999")
+    esperar(page, "document.querySelector('.aviso') && document.querySelector('.aviso').textContent.includes('não encontrado')")
+    assert page.locator(".aviso").inner_text().startswith("Município indisponível.")
+    antes = len([k for k, e in stack.app.extensions["poller"]._estados.items() if e.expira_em is not None])
+    page.wait_for_timeout(3500)
+    assert len([k for k, e in stack.app.extensions["poller"]._estados.items() if e.expira_em is not None]) == antes  # nada novo no poller
+
+
 def test_tabela_do_senado_nao_usa_cor_de_identidade_e_mede_a_diferenca_certa(abrir):
     page, _ = abrir("/senadores")
     esperar(page, "document.querySelectorAll('.tabela tbody tr').length === 27")
@@ -282,6 +312,7 @@ def test_acessibilidade_sem_violacoes_do_axe(navegador, stack, esquema, progress
             (f"/uf/sp?{INTERVALO}#governador", "#painel-governador .cand"),
             (f"/governadores?{INTERVALO}", ".tabela tbody tr"),
             (f"/senadores?{INTERVALO}", ".tabela tbody tr"),
+            (f"/municipio/sp/{Simulacao.codigo_municipio('sp', 0):05d}?{INTERVALO}", ".cand"),
         ]
         for caminho, pronto in paginas:
             page.goto(f"{stack.url}{caminho}", wait_until="networkidle")

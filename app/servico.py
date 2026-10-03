@@ -13,15 +13,24 @@ import time
 from datetime import datetime
 from typing import Any
 
-from .catalog import Disputa, disputas_ativas
+from .catalog import Alvo, Disputa, disputas_ativas
 from .config import Settings
 from .cores import Cores
 from .store import Snapshot, Store, chave
 from .tse.dominio import BRASIL, CARGO_POR_SLUG, UF_NOMES, UFS, nome_abrangencia
-from .tse.parse import BRT
+from .tse.parse import BRT, sem_acentos
 from .tse.urls import TseUrls
 
 CARGOS_DA_PAGINA_UF = ("presidente", "governador", "senador")
+TTL_MUNICIPIO_S = 90.0  # um município é consultado ao TSE enquanto alguém o pedir a cada < 90 s
+
+
+class NaoEncontrado(Exception):
+    """UF ou município que não existe nos arquivos do TSE."""
+
+
+class Indisponivel(Exception):
+    """Ainda não dá para atender (lista de municípios não carregada ou limite de acompanhamentos atingido)."""
 
 
 def _iso_epoch(epoch: float | None) -> str | None:
@@ -35,6 +44,7 @@ class Servico:
         self.poller = poller
         self.cores = cores or Cores()
         self._cache_disputas: tuple[str, list[Disputa]] = ("", [])
+        self._cache_municipios: tuple[tuple, dict] = ((), {})
         self._fotos_validas: set[tuple[int, str, str]] = set()  # (eleição, escopo, sqcand) conhecidos
         store.ao_mudar(self._ao_mudar)
 
@@ -110,14 +120,14 @@ class Servico:
             return None
         return {k: c[k] for k in ("sq", "numero", "urna", "partido", "votos", "pct", "eleito")} | {"cor": self.cores.slot(escopo_cores, c["sq"])}
 
-    def _resultado(self, snap: Snapshot, d: Disputa, uf: str) -> dict[str, Any]:
+    def _resultado(self, snap: Snapshot, d: Disputa, uf: str, nome_local: str | None = None) -> dict[str, Any]:
         r = snap.dados
         escopo_foto = BRASIL if d.cargo.cd == 1 else uf
         escopo_cores = self.escopo_cores(d.ele, d.cargo.cd, uf)
         return {
             "ele": r["ele"], "turno": r["turno"], "fase": r["fase"], "idg": r["idg"],
             "gerado_em": r["gerado_em"], "totalizado_em": r["totalizado_em"],
-            "abrangencia": {**r["abrangencia"], "nome": nome_abrangencia(r["abrangencia"]["codigo"])},
+            "abrangencia": {**r["abrangencia"], "nome": nome_local or nome_abrangencia(r["abrangencia"]["codigo"])},
             "cargo": r["cargo"], "estado": r["estado"],
             "secoes": r["secoes"], "eleitorado": r["eleitorado"], "votos": r["votos"],
             "candidatos": [self._candidato(c, d.ele, escopo_foto, escopo_cores) for c in r["candidatos"]],
@@ -221,6 +231,72 @@ class Servico:
                 "disponivel": snap is not None, "resultado": self._resultado(snap, d, uf) if snap else None,
             })
         return {"uf": uf, "nome": UF_NOMES[uf], "turno": turno, "turnos": self.turnos(), "disputas": disputas_uf}
+
+    # ---- municípios -------------------------------------------------------------------------------------------
+    def _municipios_por_uf(self) -> dict[str, dict[str, dict]]:
+        """{uf: {código: município}} a partir do EA12 mais completo já carregado (o da eleição com mais UFs)."""
+        melhor = None
+        for s in self.store.itens("cm:"):
+            if melhor is None or len(s.dados["ufs"]) > len(melhor.dados["ufs"]):
+                melhor = s
+        if melhor is None:
+            return {}
+        marca = (melhor.chave, melhor.conteudo_hash or melhor.idg)
+        if self._cache_municipios[0] != marca:
+            mapa = {uf: {m["cd"]: m for m in dados["municipios"]} for uf, dados in melhor.dados["ufs"].items()}
+            self._cache_municipios = (marca, mapa)
+        return self._cache_municipios[1]
+
+    def buscar_municipios(self, uf: str, termo: str, limite: int = 20) -> list[dict[str, Any]]:
+        """Municípios da UF cujo nome começa (primeiro) ou contém o termo, sem diferenciar acentos."""
+        uf = uf.lower()
+        mapa = self._municipios_por_uf()
+        if not mapa:
+            raise Indisponivel("a lista de municípios do TSE ainda não foi carregada")
+        if uf not in mapa or uf == "zz":
+            raise NaoEncontrado("UF desconhecida")
+        busca = sem_acentos(termo.strip())
+        todos = list(mapa[uf].values())
+        if busca:
+            achados = [m for m in todos if m["busca"].startswith(busca)] + [m for m in todos if busca in m["busca"] and not m["busca"].startswith(busca)]
+        else:
+            achados = [m for m in todos if m["capital"]]
+        return [{"cd": m["cd"], "nome": m["nome"], "capital": m["capital"]} for m in achados[:limite]]
+
+    def pagina_municipio(self, uf: str, codigo: str, turno: int | None = None) -> dict[str, Any]:
+        """Presidente, Governador e Senador de um município. Pede ao poller para acompanhá-lo (sob demanda)."""
+        uf = uf.lower()
+        mapa = self._municipios_por_uf()
+        if not mapa:
+            raise Indisponivel("a lista de municípios do TSE ainda não foi carregada")
+        municipio = mapa.get(uf, {}).get(str(codigo).zfill(5)) if uf != "zz" and str(codigo).isdigit() else None
+        if municipio is None:  # só montamos URLs de municípios que o EA12 lista: nada de 404 em massa
+            raise NaoEncontrado("município não encontrado nesta UF")
+        turno = turno or self.turno_padrao()
+        disputas, limite_atingido = [], False
+        for slug in CARGOS_DA_PAGINA_UF:
+            d = self.disputa(slug, turno)
+            if d is None or uf not in d.ufs:
+                continue
+            chave_u = chave("u", d.ele, d.cargo.cd, uf, municipio["cd"])
+            urls = self.urls(int(d.ele))
+            if self.poller and urls:
+                alvo = Alvo(chave_u, "u", urls.resultado(d.ele, d.cargo.cd, uf, municipio=municipio["cd"]), "sob_demanda",
+                            {"ele": d.ele, "cargo": d.cargo.cd, "abr": uf, "mun": municipio["cd"]})
+                if not self.poller.solicitar(alvo, TTL_MUNICIPIO_S):
+                    limite_atingido = True
+            snap = self.store.get(chave_u)
+            disputas.append({
+                "slug": slug, "nome": d.cargo.nome, "ele": d.ele, "turno": d.turno, "disponivel": snap is not None,
+                "resultado": self._resultado(snap, d, uf, nome_local=municipio["nome"]) if snap else None,
+            })
+        if limite_atingido and not any(x["disponivel"] for x in disputas):
+            raise Indisponivel("muitos municípios em acompanhamento neste momento; tente novamente em instantes")
+        return {
+            "uf": uf, "nome_uf": UF_NOMES[uf], "turno": turno, "turnos": self.turnos(),
+            "municipio": {"cd": municipio["cd"], "nome": municipio["nome"], "capital": municipio["capital"], "zonas": len(municipio["zonas"])},
+            "disputas": disputas,
+        }
 
     # ---- frescor (volátil: vai em cabeçalhos, nunca no corpo dos dados) -------------------------------------
     def frescor(self) -> dict[str, Any]:

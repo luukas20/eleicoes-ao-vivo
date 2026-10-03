@@ -158,9 +158,18 @@ class Poller:
             self._estados[alvo.chave] = estado
             return estado
 
-    def solicitar(self, alvo: Alvo, ttl: float = 90.0) -> None:
-        """Alvo sob demanda (município/UF em foco): consultado enquanto alguém renovar o pedido."""
+    def solicitar(self, alvo: Alvo, ttl: float = 90.0) -> bool:
+        """Alvo sob demanda (município em foco): consultado enquanto alguém renovar o pedido.
+
+        Devolve False (sem criar nada) quando já há `max_sob_demanda` alvos desse tipo, para os pedidos
+        dos visitantes nunca ameaçarem o limite de requisições ao TSE."""
+        with self._lock:
+            novo = alvo.chave not in self._estados
+            cheio = sum(1 for e in self._estados.values() if e.expira_em is not None) >= self.cfg.max_sob_demanda
+        if novo and cheio:
+            return False
         self._adicionar(alvo, inicio_imediato=True, ttl=ttl)
+        return True
 
     def sincronizar(self) -> int:
         """Cria os alvos derivados do EA11 já carregado. Devolve quantos alvos existem ao todo."""

@@ -12,7 +12,7 @@ from typing import Any
 
 from flask import Blueprint, Response, current_app, request
 
-from .servico import Servico
+from .servico import Indisponivel, NaoEncontrado, Servico
 
 bp = Blueprint("api", __name__, url_prefix="/api/v1")
 
@@ -45,7 +45,10 @@ def responder(payload: Any, status: int = 200, *, etag: bool = True) -> Response
 
 
 def erro(mensagem: str, status: int) -> Response:
-    return responder({"erro": mensagem}, status, etag=False)
+    resposta = responder({"erro": mensagem}, status, etag=False)
+    if status == 503:
+        resposta.headers["Retry-After"] = "5"
+    return resposta
 
 
 def _turno() -> tuple[int | None, Response | None]:
@@ -89,6 +92,34 @@ def uf(uf: str):
         return falha
     dados = servico().pagina_uf(uf, turno)
     return responder(dados) if dados else erro("UF desconhecida", 404)
+
+
+@bp.get("/municipios")
+def municipios():
+    """Busca de municípios de uma UF pelo nome (`?uf=sp&q=sao`); sem `q`, devolve a capital."""
+    termo = request.args.get("q", "")
+    if len(termo) > 60:
+        return erro("termo de busca muito longo", 400)
+    try:
+        resultados = servico().buscar_municipios(request.args.get("uf", ""), termo)
+    except NaoEncontrado as ex:
+        return erro(str(ex), 404)
+    except Indisponivel as ex:
+        return erro(str(ex), 503)
+    return responder({"uf": request.args.get("uf", "").lower(), "termo": termo, "resultados": resultados}, etag=False)
+
+
+@bp.get("/municipio/<uf>/<codigo>")
+def municipio(uf: str, codigo: str):
+    turno, falha = _turno()
+    if falha:
+        return falha
+    try:
+        return responder(servico().pagina_municipio(uf, codigo, turno))
+    except NaoEncontrado as ex:
+        return erro(str(ex), 404)
+    except Indisponivel as ex:
+        return erro(str(ex), 503)
 
 
 @bp.get("/status")

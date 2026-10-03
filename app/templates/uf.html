@@ -3,6 +3,12 @@
 {% block dados %} data-uf="{{ uf }}" data-nome-uf="{{ nome_uf }}"{% endblock %}
 {% block conteudo %}
 <h2 class="uf-titulo">{{ nome_uf }}</h2>
+<div class="busca">
+  <label for="busca-mun" class="rotulo">Buscar município em {{ nome_uf }}</label>
+  <input id="busca-mun" class="campo" type="search" autocomplete="off" placeholder="Digite o nome do município…" aria-controls="res-mun">
+  <ul id="res-mun" class="resultados-busca" hidden></ul>
+  <p id="aviso-busca" class="so-leitor" role="status" aria-live="polite"></p>
+</div>
 <div id="abas" class="abas-internas" role="tablist" aria-label="Disputas em {{ nome_uf }}"></div>
 <div id="paineis"></div>
 {% endblock %}

@@ -9,11 +9,16 @@ function intervaloDaUrl(padrao) {
 }
 
 export class Atualizador {
-  constructor({ url, intervaloMs = 10000, aoDados, aoFrescor, aoErro, aoIndisponivel }) {
+  /**
+   * aoDados(dados): dado novo (ETag mudou). aoSemMudanca(): resposta igual à anterior.
+   * aoIndisponivel(mensagem, status): 404/503 da API (ex.: dados ainda não carregados).
+   */
+  constructor({ url, intervaloMs = 10000, aoDados, aoFrescor, aoErro, aoIndisponivel, aoSemMudanca }) {
     intervaloMs = intervaloDaUrl(intervaloMs);
-    Object.assign(this, { url, intervaloMs, aoDados, aoFrescor, aoErro, aoIndisponivel });
+    Object.assign(this, { url, intervaloMs, aoDados, aoFrescor, aoErro, aoIndisponivel, aoSemMudanca });
     this.etag = null;
     this.carregando = false;
+    this.rapido = null;
   }
 
   iniciar() {
@@ -24,6 +29,12 @@ export class Atualizador {
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) this.buscar();
     });
+  }
+
+  /** Agenda uma consulta extra daqui a `ms` (ex.: enquanto se espera o primeiro arquivo de um município). */
+  buscarEm(ms) {
+    clearTimeout(this.rapido);
+    this.rapido = setTimeout(() => this.buscar(), ms);
   }
 
   async buscar() {
@@ -38,14 +49,17 @@ export class Atualizador {
         disjuntor: resp.headers.get("X-Disjuntor") === "1",
         recebidoEm: performance.now(),
       });
-      if (resp.status === 404) {
+      if (resp.status === 404 || resp.status === 503) {
         const corpo = await resp.json().catch(() => ({}));
-        this.aoIndisponivel?.(corpo.erro || "Dados ainda indisponíveis");
+        this.aoIndisponivel?.(corpo.erro || "Dados ainda indisponíveis", resp.status);
         return;
       }
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const etag = resp.headers.get("ETag");
-      if (etag && etag === this.etag) return; // nada novo do TSE desde a última vez
+      if (etag && etag === this.etag) {
+        this.aoSemMudanca?.(); // nada novo do TSE desde a última vez
+        return;
+      }
       this.etag = etag;
       this.aoDados(await resp.json());
     } catch (erro) {

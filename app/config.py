@@ -34,6 +34,7 @@ class Settings:
     max_rps: float = 15.0  # teto global de requisições/s ao TSE (o limite deles é 100)
     workers: int = 8
     escala_polling: float = 1.0  # multiplica os intervalos de consulta (testes usam < 1)
+    max_sob_demanda: int = 120  # municípios (arquivos) consultados ao mesmo tempo por pedido de visitantes
     desatualizado_apos_s: int = 120  # sem consulta bem-sucedida há tanto tempo => aviso na tela
     data_dir: Path = RAIZ / "data"
     host: str = "127.0.0.1"

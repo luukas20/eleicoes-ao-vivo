@@ -22,17 +22,6 @@ document.getElementById("slot-mapa").append(mapa.el);
 document.getElementById("slot-legenda").append(legenda.el);
 document.getElementById("slot-tabela").append(tabela.el);
 
-let contexto = { fase: null, turno: null, turnos: [], data: null };
-const aplicarContexto = (parcial) => {
-  contexto = { ...contexto, ...parcial };
-  casca.definirContexto(contexto);
-};
-
-fetch("/api/v1/meta")
-  .then((r) => r.json())
-  .then((m) => aplicarContexto({ fase: m.fase, data: m.data }))
-  .catch(() => {});
-
 new Atualizador({
   url: `/api/v1/presidente${consulta}`,
   aoFrescor: (f) => casca.definirFrescor(f),
@@ -44,7 +33,7 @@ new Atualizador({
       return;
     }
     const r = d.resultado;
-    aplicarContexto({ fase: r.fase, turno: d.turno, turnos: d.turnos });
+    casca.atualizarContexto({ fase: r.fase, turno: d.turno, turnos: d.turnos });
     avisos.atualizar(avisosDoResultado(r));
     heroi.atualizar(r);
     kpis.atualizar(r);

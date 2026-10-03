@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block titulo %}Município{% endblock %}
+{% block dados %} data-uf="{{ uf }}" data-nome-uf="{{ nome_uf }}" data-codigo="{{ codigo }}"{% endblock %}
+{% block conteudo %}
+<nav class="migalhas" aria-label="Você está em">
+  <a href="/uf/{{ uf }}">{{ nome_uf }}</a> <span aria-hidden="true">›</span> <span id="nome-municipio">Município {{ codigo }}</span>
+</nav>
+<h2 class="uf-titulo" id="titulo-municipio">Município {{ codigo }}</h2>
+<div id="avisos" class="avisos" aria-live="polite"></div>
+<div id="abas" class="abas-internas" role="tablist" aria-label="Disputas no município"></div>
+<div id="paineis"></div>
+{% endblock %}

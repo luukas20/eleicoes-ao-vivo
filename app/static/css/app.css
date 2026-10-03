@@ -278,6 +278,22 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 0.9375rem; mar
 .th-botao:hover { text-decoration: underline; }
 @media (max-width: 720px) { .esconde-movel { display: none; } }
 
+/* ---- busca de município e migalhas --------------------------------------------------------------------- */
+.busca { position: relative; max-width: 520px; margin-bottom: 16px; }
+.campo {
+  width: 100%; margin-top: 4px; padding: 10px 14px; border-radius: 999px; font-size: 1rem;
+  background: var(--sup); border: 1px solid var(--eixo); color: var(--tinta);
+}
+.campo::placeholder { color: var(--tinta-2); opacity: 0.8; }
+.resultados-busca {
+  list-style: none; margin: 6px 0 0; padding: 4px; background: var(--sup); border: 1px solid var(--anel);
+  border-radius: var(--raio); max-height: 320px; overflow-y: auto;
+}
+.resultados-busca a { display: block; padding: 9px 12px; border-radius: 8px; text-decoration: none; }
+.resultados-busca a:hover, .resultados-busca a:focus-visible { background: var(--page); }
+.migalhas { font-size: 0.875rem; color: var(--tinta-2); margin-bottom: 4px; }
+.migalhas a { text-underline-offset: 2px; }
+
 /* ---- abas internas (página da UF) ------------------------------------------------------------------- */
 .abas-internas { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
 .abas-internas button {
