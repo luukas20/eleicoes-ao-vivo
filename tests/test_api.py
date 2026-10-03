@@ -68,6 +68,29 @@ def test_a_cor_segue_o_candidato_e_nao_a_posicao(novo_app):
     assert all(depois[sq] == cor for sq, cor in antes.items())
 
 
+def test_cores_e_historico_de_ambientes_diferentes_nao_se_misturam(tmp_path):
+    """Rodar a demonstração (simulado) não pode consumir as primeiras cores nem poluir a curva do oficial."""
+    from app import create_app
+    from app.config import Settings
+    from app.store import Store
+    from app.tse.client import TokenBucket, TseClient
+    from tests.conftest import SessaoTSE
+
+    def subir(ambiente):
+        cliente = TseClient(user_agent="t", session=SessaoTSE(), bucket=TokenBucket(1000))
+        store = Store()
+        app = create_app(Settings(data_dir=tmp_path, ambiente=ambiente, iniciar_poller=False), store=store, client=cliente, iniciar_poller=False)
+        popular_store(store, 0.5)
+        return app
+
+    subir("simulado")
+    assert (tmp_path / "cores" / "simulado.json").exists() and not (tmp_path / "cores" / "oficial.json").exists()
+    assert (tmp_path / "historico" / "simulado").is_dir() and not (tmp_path / "historico" / "oficial").exists()
+    oficial = subir("oficial")  # o oficial começa do zero: os candidatos reais pegam as cores 1, 2 e 3
+    cores = [c["cor"] for c in oficial.test_client().get("/api/v1/presidente").get_json()["resultado"]["candidatos"] if c["cor"]]
+    assert sorted(cores) == [1, 2, 3]
+
+
 def test_cores_nao_sao_atribuidas_no_comecinho_da_apuracao(novo_app):
     app, _, _ = novo_app(0.01)  # menos de 1% das seções totalizadas: ranking ainda instável
     r = json_de(app.test_client().get("/api/v1/presidente"))["resultado"]

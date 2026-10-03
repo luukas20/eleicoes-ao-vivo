@@ -36,8 +36,9 @@ def create_app(
     poller = Poller(settings, client, store)
     servico = Servico(
         settings, store, poller=poller,
-        cores=Cores(settings.data_dir / "cores.json"),
-        historico=Historico(settings.data_dir / "historico" / settings.ambiente),  # simulado e oficial nunca se misturam
+        # simulado e oficial nunca se misturam: rodar a demonstração não pode tirar as cores dos candidatos reais
+        cores=Cores(settings.data_dir / "cores" / f"{settings.ambiente}.json"),
+        historico=Historico(settings.data_dir / "historico" / settings.ambiente),
     )
     app.extensions.update(
         settings=settings, store=store, poller=poller, servico=servico,
