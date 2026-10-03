@@ -1,7 +1,8 @@
-// Página inicial: Presidente (Brasil) com progresso, ranking, mapa de blocos e tabela por UF.
+// Página inicial: Presidente (Brasil) com progresso, ranking, mapa das UFs e tabela por UF.
 import { Atualizador } from "./net.js";
 import { Casca } from "./ui.js";
-import { Avisos, Heroi, Kpis, Legenda, Mapa, Ranking, TabelaUfs, avisosDoResultado } from "./componentes.js";
+import { Avisos, Heroi, Kpis, Legenda, Ranking, TabelaUfs, avisosDoResultado } from "./componentes.js";
+import { MapaUfs } from "./mapa.js";
 import { GraficoEvolucao } from "./grafico.js";
 
 const casca = new Casca();
@@ -12,7 +13,7 @@ const avisos = new Avisos(document.getElementById("avisos"));
 const heroi = new Heroi();
 const kpis = new Kpis();
 const ranking = new Ranking({ metaCinquenta: true });
-const mapa = new Mapa();
+const mapa = new MapaUfs();
 const legenda = new Legenda();
 const tabela = new TabelaUfs({ posicoes: 2 });
 

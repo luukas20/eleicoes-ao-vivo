@@ -6,7 +6,7 @@ Painel **não oficial** de acompanhamento ao vivo da apuração das eleições b
 
 ## O que já faz
 
-- **Presidente (Brasil):** progresso da totalização, comparecimento, abstenção, brancos e nulos, ranking com foto, partido e vice, mapa de blocos das UFs mostrando quem lidera, e tabela por UF ordenável.
+- **Presidente (Brasil):** progresso da totalização, comparecimento, abstenção, brancos e nulos, ranking com foto, partido e vice, **mapa do Brasil** com cada estado pintado pela cor de quem lidera (clique abre a UF; estados pequenos ganham uma etiqueta ao lado; opção de ver em blocos, com o progresso de cada UF), e tabela por UF ordenável.
 - **Evolução ao longo da apuração:** gráfico de linhas com o percentual dos três primeiros colocados, por horário ou por % das seções totalizadas, com dica ao passar o mouse, tocar ou usar as setas do teclado, e tabela equivalente. Existe para o Brasil e para cada UF.
 - **Governador e Senador:** tabela com todas as UFs e página de cada UF com o ranking completo (Senado com a linha das 2 vagas).
 - **Municípios:** busca pelo nome na página de cada UF; a página do município mostra Presidente, Governador e Senador ali.
@@ -67,9 +67,14 @@ TSE (CDN) ──GET condicional──▶ poller (servidor) ──▶ cache em me
 
 Os testes usam arquivos reais do TSE capturados antes da eleição (`tests/fixtures/`, sem alteração) e dados sintéticos. Para recapturar os fixtures com poucas requisições: `python -m tools.capture`.
 
+### O desenho do mapa
+
+O painel não consulta o IBGE: o contorno das UFs já está em [`app/static/data/mapa-ufs.json`](app/static/data/mapa-ufs.json) (16 KB). Ele é gerado por `python -m tools.gerar_mapa`, que baixa a malha das UFs do IBGE, projeta (cônica equivalente de Albers), simplifica os contornos por arcos (a fronteira entre dois estados é simplificada uma vez só, então os vizinhos continuam encaixados) e calcula onde cabe a sigla dentro de cada estado. Só é preciso rodá-lo se quiser mudar a projeção ou o nível de detalhe.
+
 ## Fonte dos dados
 
 - Dados: <https://resultados.tse.jus.br> (arquivos JSON; os `.jws` assinados também estão disponíveis).
+- Contornos das UFs: IBGE, Malhas Territoriais (<https://servicodados.ibge.gov.br/api/docs/malhas?versao=3>), simplificados.
 - Documentação técnica usada como referência: pasta [`ref/`](ref/).
 
 ## Licença

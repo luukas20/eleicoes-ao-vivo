@@ -14,8 +14,10 @@ from werkzeug.serving import make_server
 
 from app import create_app
 from app.config import Settings
+from app.tse.dominio import UF_NOMES, UFS
 from mock.gerador import Simulacao
 from mock.server import criar_app
+from tools.gerar_mapa import sem_acento
 
 playwright_sync = pytest.importorskip("playwright.sync_api")
 pytestmark = pytest.mark.e2e
@@ -132,11 +134,26 @@ def esperar(page, js, timeout=20000):
         page.wait_for_timeout(150)
 
 
+def esperar_mapa(page):
+    """O desenho do mapa é um arquivo à parte: espera as 27 UFs desenhadas e pintadas com a cor de quem lidera."""
+    esperar(page, "document.querySelectorAll('a.uf').length === 27 && document.querySelectorAll('a.uf[data-cor]').length > 10")
+
+
+def centro_da_sigla(page, uf):
+    """Centro (na janela) da sigla desenhada dentro do estado; a sigla não captura o mouse, então o ponto cai sobre o estado."""
+    sigla = page.locator(f".uf-rotulo:text-is('{uf.upper()}')")
+    sigla.scroll_into_view_if_needed()  # o mapa fica abaixo da dobra e o mouse do Playwright não rola a página sozinho
+    caixa = sigla.bounding_box()
+    return caixa["x"] + caixa["width"] / 2, caixa["y"] + caixa["height"] / 2
+
+
 # ---- carregamento e estrutura ----------------------------------------------------------------------------
 def test_painel_carrega_sem_erros_e_com_a_estrutura_esperada(abrir):
     page, erros = abrir("/")
     esperar(page, "document.querySelectorAll('.cand').length === 6")
-    assert page.locator(".bloco").count() == 28  # 27 UFs + exterior
+    assert page.locator(".bloco").count() == 28  # 27 UFs + exterior (a visão de blocos fica no DOM, escondida)
+    esperar_mapa(page)
+    assert page.locator("a.uf").count() == 27 and page.locator(".chip-exterior").count() == 1
     assert page.locator(".kpi").count() == 5
     assert page.locator(".tabela tbody tr").count() == 28
     assert page.locator(".heroi-num").inner_text().replace("\n", "").endswith("%")
@@ -183,8 +200,169 @@ def test_dica_aparece_no_hover_e_no_foco_do_teclado(abrir):
     assert page.locator("#dica").is_hidden()
 
 
-def test_clicar_num_bloco_do_mapa_abre_a_pagina_da_uf(abrir):
+def test_clicar_num_estado_do_mapa_abre_a_pagina_da_uf(abrir):
     page, _ = abrir("/")
+    esperar_mapa(page)
+    page.mouse.click(*centro_da_sigla(page, "sp"))
+    page.wait_for_url("**/uf/sp**")
+    esperar(page, "document.querySelectorAll('.cand').length > 0")
+    assert page.locator(".uf-titulo").inner_text() == "São Paulo"
+
+
+def test_clicar_na_etiqueta_de_um_estado_pequeno_abre_a_pagina_da_uf(abrir):
+    page, _ = abrir("/")
+    esperar_mapa(page)
+    etiqueta = page.locator("a.chip-uf:not([data-oculto])", has_text="RN")
+    assert etiqueta.count() == 1  # o Rio Grande do Norte é pequeno demais para a sigla caber dentro dele
+    etiqueta.click()
+    page.wait_for_url("**/uf/rn**")
+
+
+# ---- mapa geográfico -------------------------------------------------------------------------------------------
+def test_mapa_pinta_cada_uf_com_a_cor_de_quem_lidera_igual_aos_blocos_e_a_legenda(abrir):
+    page, erros = abrir("/")
+    esperar_mapa(page)
+    assert page.locator(".mapa-geo").is_visible() and page.locator(".mapa").is_hidden()  # o mapa é a visão padrão
+    mapa = page.evaluate("Object.fromEntries([...document.querySelectorAll('a.uf')].map(a => [a.dataset.uf, a.dataset.cor]))")
+    blocos = page.evaluate("Object.fromEntries([...document.querySelectorAll('.bloco')].map(b => [b.dataset.uf, b.dataset.cor]))")
+    assert len(mapa) == 27 and mapa == {uf: blocos[uf] for uf in mapa}
+    assert set(mapa.values()) <= {"0", "1", "2", "3"} and {"1", "2"} <= set(mapa.values())
+    assert page.locator(".chip-exterior").get_attribute("data-cor") == blocos["zz"]
+    cor_do_estado = page.evaluate("getComputedStyle(document.querySelector('a.uf[data-uf=sp] path')).fill")
+    cor_da_legenda = page.evaluate(
+        "cor => getComputedStyle(document.querySelector(`.legenda .chave[data-cor='${cor}']`)).backgroundColor", mapa["sp"])
+    assert cor_do_estado == cor_da_legenda  # a mesma cor da pessoa, no mapa e na legenda
+    assert erros == []  # inclui violações da CSP
+
+
+def test_mapa_sem_votos_liberados_fica_neutro_e_nao_inventa_lider(abrir, stack):
+    stack.sim.dv_presidente = False  # as seções já são totalizadas, mas o TSE ainda não liberou os votos do Presidente
+    page, _ = abrir("/")
+    # os arquivos por UF chegam depois do nacional (e mais devagar quando nada mudava): espera o estado, não um tempo fixo
+    esperar(page, "document.querySelectorAll('a.uf').length === 27 && document.querySelectorAll('a.uf[data-cor]').length === 0", timeout=40000)
+    esperar(page, "!document.querySelector('.chip-exterior').hasAttribute('data-cor')", timeout=40000)
+    assert "sem votos liberados" in page.locator("a.uf[data-uf=sp]").get_attribute("aria-label")
+    fundo = page.evaluate("getComputedStyle(document.querySelector('a.uf[data-uf=sp] path')).fill")
+    assert fundo == page.evaluate("getComputedStyle(document.querySelector('.chave-vazia')).backgroundColor")  # igual à legenda
+
+
+def test_mapa_dica_e_contorno_no_mouse_e_no_teclado(abrir):
+    page, _ = abrir("/")
+    esperar_mapa(page)
+    assert page.locator("#dica").is_hidden() and page.locator(".uf-destaque").get_attribute("d") is None
+    page.mouse.move(*centro_da_sigla(page, "sp"))
+    assert page.locator("#dica").is_visible() and "São Paulo" in page.locator("#dica").inner_text()
+    assert page.locator(".uf-destaque").get_attribute("d") == page.locator("a.uf[data-uf=sp] path").get_attribute("d")
+    page.mouse.move(2, 2)
+    assert page.locator("#dica").is_hidden() and page.locator(".uf-destaque").get_attribute("d") is None
+    page.locator("a.uf[data-uf=ba]").focus()  # mesmo conteúdo e mesmo contorno no foco por teclado
+    assert page.locator("#dica").is_visible() and "Bahia" in page.locator("#dica").inner_text()
+    assert page.locator(".uf-destaque").get_attribute("d") == page.locator("a.uf[data-uf=ba] path").get_attribute("d")
+    page.keyboard.press("Escape")
+    assert page.locator("#dica").is_hidden()
+
+
+def test_mapa_tab_percorre_as_ufs_em_ordem_alfabetica_do_nome(abrir):
+    page, _ = abrir("/")
+    esperar_mapa(page)
+    ordem_no_dom = page.eval_on_selector_all("a.uf", "els => els.map(e => e.dataset.uf)")
+    assert ordem_no_dom == sorted(UFS, key=lambda uf: sem_acento(UF_NOMES[uf]))
+    page.locator("a.uf[data-uf=ac]").focus()
+    page.keyboard.press("Tab")
+    assert page.evaluate("document.activeElement.dataset.uf") == "al"  # Acre -> Alagoas
+    assert page.locator("a.chip-uf").first.get_attribute("tabindex") == "-1"  # as etiquetas repetem o link: não entram no Tab
+
+
+def test_alternar_entre_mapa_e_blocos_e_lembrar_a_escolha(abrir):
+    page, _ = abrir("/")
+    esperar_mapa(page)
+    page.get_by_role("button", name="Blocos", exact=True).click()
+    assert page.locator(".mapa").is_visible() and page.locator(".mapa-geo").is_hidden()
+    assert page.get_by_role("button", name="Blocos", exact=True).get_attribute("aria-pressed") == "true"
+    assert page.get_by_role("button", name="Mapa", exact=True).get_attribute("aria-pressed") == "false"
+    page.reload(wait_until="networkidle")
+    esperar(page, "document.querySelectorAll('.bloco[data-cor]').length > 10")
+    assert page.locator(".mapa").is_visible() and page.locator(".mapa-geo").is_hidden()  # lembrou a escolha
+    page.locator(".bloco.uf-sp").click()  # os blocos continuam clicáveis
+    page.wait_for_url("**/uf/sp**")
+    page.go_back(wait_until="networkidle")
+    page.get_by_role("button", name="Mapa", exact=True).click()
+    esperar(page, "[...document.querySelectorAll('.uf-rotulo')].some(t => !t.hasAttribute('data-oculto'))")  # o layout é refeito ao reexibir
+    assert page.locator(".mapa-geo").is_visible()
+
+
+def test_sem_o_desenho_do_mapa_mostra_os_blocos(navegador, stack):
+    ctx = navegador.new_context(viewport={"width": 1280, "height": 900}, locale="pt-BR")
+    try:
+        page = ctx.new_page()
+        page.route("**/mapa-ufs.json", lambda rota: rota.fulfill(status=404, body="não achei"))
+        page.goto(f"{stack.url}/?{INTERVALO}", wait_until="networkidle")
+        esperar(page, "document.querySelectorAll('.bloco[data-cor]').length > 10")
+        assert page.locator(".mapa").is_visible()
+        assert page.locator("[aria-label='Forma de exibir as UFs']").is_hidden()  # sem o desenho não há o que escolher
+    finally:
+        ctx.close()
+
+
+CONFERE_MAPA = """() => {
+  const problemas = [];
+  const visiveis = (sel) => [...document.querySelectorAll(sel)].filter((e) => !e.hasAttribute('data-oculto'));
+  const caixa = (e) => e.getBoundingClientRect();
+  const area = document.querySelector('.mapa-geo-svg').getBoundingClientRect();
+  const rotulos = visiveis('.uf-rotulo');
+  for (const t of rotulos) {   // a sigla está mesmo sobre o próprio estado: centro e as duas pontas
+    const uf = t.textContent.toLowerCase();
+    const r = caixa(t);
+    for (const x of [r.left + 1, r.left + r.width / 2, r.right - 1]) {
+      const forma = document.elementsFromPoint(x, r.top + r.height / 2).find((e) => e.classList.contains('uf-forma'));
+      if (!forma || forma.parentNode.dataset.uf !== uf) problemas.push(`a sigla ${uf} sai do estado`);
+    }
+  }
+  const etiquetas = visiveis('.chip-uf').map((c) => ({ nome: c.textContent.trim(), r: caixa(c.querySelector('rect')) }));
+  const bate = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  etiquetas.forEach((e, i) => {
+    if (e.r.left < area.left - 1 || e.r.right > area.right + 1 || e.r.top < area.top - 1 || e.r.bottom > area.bottom + 1) problemas.push(`a etiqueta ${e.nome} sai do mapa`);
+    etiquetas.slice(i + 1).forEach((o) => { if (bate(e.r, o.r)) problemas.push(`as etiquetas ${e.nome} e ${o.nome} se sobrepõem`); });
+    rotulos.forEach((t) => { if (bate(e.r, caixa(t))) problemas.push(`a etiqueta ${e.nome} cobre a sigla ${t.textContent}`); });
+  });
+  const identificadas = new Set([...rotulos.map((t) => t.textContent.toLowerCase()), ...etiquetas.map((e) => e.nome.toLowerCase())]);
+  return {
+    problemas, sem_identificacao: [...document.querySelectorAll('a.uf')].map((a) => a.dataset.uf).filter((u) => !identificadas.has(u)),
+    altura_das_etiquetas: etiquetas.length ? Math.min(...etiquetas.map((e) => e.r.height)) : 0,
+  };
+}"""
+
+
+@pytest.mark.parametrize("largura, toque", [(360, True), (390, True), (600, True), (768, True), (820, True), (1024, True), (1280, False), (1600, False)])
+def test_mapa_siglas_dentro_dos_estados_e_etiquetas_sem_se_atropelar(abrir, largura, toque):
+    # janela bem alta: `elementsFromPoint` só enxerga o que está dentro da janela e o mapa fica abaixo da dobra
+    page, erros = abrir("/", largura=largura, altura=2600, toque=toque)
+    esperar_mapa(page)
+    page.wait_for_timeout(700)
+    r = page.evaluate(CONFERE_MAPA)
+    assert r["problemas"] == [], f"{largura}px: {r['problemas']}"
+    if largura >= 390:
+        assert r["sem_identificacao"] == [], r  # toda UF tem a sigla dentro ou uma etiqueta ao lado
+    else:
+        assert len(r["sem_identificacao"]) <= 2, r  # só telas muito estreitas perdem algumas siglas
+    assert r["altura_das_etiquetas"] >= (24 if toque else 18)  # alvo de toque mínimo do WCAG 2.2 (24 px) nas etiquetas
+    assert erros == []
+
+
+def test_mapa_acompanha_a_apuracao_ate_o_fim(abrir, stack):
+    page, _ = abrir("/")
+    esperar_mapa(page)
+    stack.sim.ir_para(1.0)
+    esperar(page, "document.body.textContent.includes('Totalização final concluída')")
+    esperar(page, "[...document.querySelectorAll('a.uf')].every(a => a.getAttribute('aria-label').includes('100,00%'))", timeout=30000)
+    mapa = page.evaluate("Object.fromEntries([...document.querySelectorAll('a.uf')].map(a => [a.dataset.uf, a.dataset.cor]))")
+    blocos = page.evaluate("Object.fromEntries([...document.querySelectorAll('.bloco')].map(b => [b.dataset.uf, b.dataset.cor]))")
+    assert mapa == {uf: blocos[uf] for uf in mapa} and len(mapa) == 27
+
+
+def test_clicar_num_bloco_abre_a_pagina_da_uf(abrir):
+    page, _ = abrir("/")
+    page.get_by_role("button", name="Blocos", exact=True).click()
     esperar(page, "document.querySelectorAll('.bloco[data-cor]').length > 5")
     page.locator("a.bloco.uf-sp").click()
     page.wait_for_url("**/uf/sp**")
@@ -357,6 +535,25 @@ def test_acessibilidade_sem_violacoes_do_axe(navegador, stack, esquema, progress
                 for v in violacoes
             ]
             assert not violacoes, f"{esquema} {caminho} @{progresso}:\n" + "\n".join(resumo)
+    finally:
+        ctx.close()
+
+
+@pytest.mark.parametrize("esquema", ["light", "dark"])
+@pytest.mark.parametrize("progresso", [0.0, 0.5])
+def test_acessibilidade_da_visao_em_blocos(navegador, stack, esquema, progresso):
+    axe_pw = pytest.importorskip("axe_playwright_python.sync_playwright")
+    stack.sim.ir_para(progresso)
+    ctx = navegador.new_context(viewport={"width": 1280, "height": 900}, color_scheme=esquema, locale="pt-BR", bypass_csp=True)
+    try:
+        ctx.add_init_script("try { localStorage.setItem('mapa-visao', 'blocos'); } catch (e) {}")
+        page = ctx.new_page()
+        page.goto(f"{stack.url}/?{INTERVALO}", wait_until="networkidle")
+        esperar(page, "document.querySelectorAll('.cand').length > 0 && document.querySelector('.mapa').offsetParent !== null")
+        page.wait_for_timeout(3000)
+        violacoes = axe_pw.Axe().run(page).response["violations"]
+        resumo = [f"{v['id']} [{v['impact']}] {v['help']}: " + "; ".join(str(n['target']) for n in v["nodes"][:3]) for v in violacoes]
+        assert not violacoes, "\n".join(resumo)
     finally:
         ctx.close()
 

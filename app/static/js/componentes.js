@@ -217,6 +217,35 @@ export class Ranking {
   }
 }
 
+// ---- UF no mapa: quem lidera, dica e descrição acessível (compartilhados pelo mapa geográfico e pelo de blocos) ----
+/** Candidato à frente na UF, ou null se ainda não há votos liberados. */
+export function liderDaUf(l) {
+  return l && l.disponivel && l.top.length ? l.top[0] : null;
+}
+
+/** Dica (tooltip) de uma UF: totalização e os primeiros colocados. */
+export function dicaDeUf(l) {
+  if (!l) return null;
+  const corpo = h("div", {}, dica.titulo(l.nome));
+  if (!l.disponivel) {
+    corpo.append(h("div", { class: "dica-linha", texto: "Aguardando dados do TSE" }));
+    return corpo;
+  }
+  corpo.append(h("div", { class: "dica-linha", texto: `${fmt.pct(l.secoes.pst)} das seções totalizadas` }));
+  if (l.totalizado_em) corpo.append(h("div", { class: "dica-linha", texto: `Última totalização da UF às ${fmt.hora(l.totalizado_em)}` }));
+  for (const c of l.top) corpo.append(dica.linha(c.cor, fmt.pct(c.pct), c.urna, `${fmt.inteiro(c.votos)} votos`));
+  if (!l.top.length) corpo.append(h("div", { class: "dica-linha", texto: l.divulga ? "Sem votos apurados" : "Votação ainda não liberada" }));
+  return corpo;
+}
+
+/** Texto lido por leitores de tela para uma UF (o nome é passado à parte porque o mapa já o conhece antes dos dados). */
+export function descreverUf(nome, l) {
+  const lider = liderDaUf(l);
+  return lider
+    ? `${nome}: ${lider.urna} à frente com ${fmt.pct(lider.pct)}; ${fmt.pct(l.secoes.pst)} das seções totalizadas`
+    : `${nome}: ${l && l.disponivel && l.secoes.st > 0 ? "sem votos liberados" : "apuração não iniciada"}`;
+}
+
 // ---- mapa em blocos ------------------------------------------------------------------------------------
 export const ORDEM_BLOCOS = [
   "rr", "ap", "am", "pa", "ma", "ce", "rn", "ac", "ro", "mt", "to", "pi", "pe", "pb",
@@ -235,27 +264,12 @@ export class Mapa {
       bloco.prog = h("i");
       const filhos = [bloco.uf, bloco.valor, bloco.prog];
       bloco.el = uf === "zz"
-        ? h("div", { class: `bloco uf-${uf}`, tabindex: "0", role: "img" }, ...filhos)
-        : h("a", { class: `bloco uf-${uf}`, href: `/uf/${uf}${window.location.search}` }, ...filhos);
-      dica.vincular(bloco.el, () => this.dicaDe(uf));
+        ? h("div", { class: `bloco uf-${uf}`, "data-uf": uf, tabindex: "0", role: "img" }, ...filhos)
+        : h("a", { class: `bloco uf-${uf}`, "data-uf": uf, href: `/uf/${uf}${window.location.search}` }, ...filhos);
+      dica.vincular(bloco.el, () => dicaDeUf(this.dados.get(uf)));
       this.blocos.set(uf, bloco);
       this.el.append(bloco.el);
     }
-  }
-
-  dicaDe(uf) {
-    const l = this.dados.get(uf);
-    if (!l) return null;
-    const corpo = h("div", {}, dica.titulo(l.nome));
-    if (!l.disponivel) {
-      corpo.append(h("div", { class: "dica-linha", texto: "Aguardando dados do TSE" }));
-      return corpo;
-    }
-    corpo.append(h("div", { class: "dica-linha", texto: `${fmt.pct(l.secoes.pst)} das seções totalizadas` }));
-    if (l.totalizado_em) corpo.append(h("div", { class: "dica-linha", texto: `Última totalização da UF às ${fmt.hora(l.totalizado_em)}` }));
-    for (const c of l.top) corpo.append(dica.linha(c.cor, fmt.pct(c.pct), c.urna, `${fmt.inteiro(c.votos)} votos`));
-    if (!l.top.length) corpo.append(h("div", { class: "dica-linha", texto: l.divulga ? "Sem votos apurados" : "Votação ainda não liberada" }));
-    return corpo;
   }
 
   atualizar(ufs) {
@@ -263,7 +277,7 @@ export class Mapa {
       this.dados.set(l.codigo, l);
       const b = this.blocos.get(l.codigo);
       if (!b) continue;
-      const lider = l.disponivel && l.top.length ? l.top[0] : null;
+      const lider = liderDaUf(l);
       if (lider) {
         b.el.dataset.cor = String(lider.cor);
         delete b.el.dataset.semDados;
@@ -274,10 +288,7 @@ export class Mapa {
         b.valor.textContent = l.disponivel && l.secoes.st > 0 ? "—" : "";
       }
       b.prog.style.width = l.disponivel && l.secoes.pst ? `${Math.min(100, l.secoes.pst.n)}%` : "0%";
-      const nome = l.nome;
-      b.el.setAttribute("aria-label", lider
-        ? `${nome}: ${lider.urna} à frente com ${fmt.pct(lider.pct)}; ${fmt.pct(l.secoes.pst)} das seções totalizadas`
-        : `${nome}: ${l.disponivel && l.secoes.st > 0 ? "sem votos liberados" : "apuração não iniciada"}`);
+      b.el.setAttribute("aria-label", descreverUf(l.nome, l));
     }
   }
 }

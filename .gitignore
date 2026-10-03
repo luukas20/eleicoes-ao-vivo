@@ -15,8 +15,8 @@ dist/
 .env.*
 !.env.example
 
-# Dados de execução (fotos em cache, histórico, logs)
-data/
+# Dados de execução (fotos em cache, histórico, logs): só a pasta da raiz; app/static/data/ (contornos do mapa) é versionada
+/data/
 *.log
 
 # Editor / IDE

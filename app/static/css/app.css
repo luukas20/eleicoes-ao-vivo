@@ -18,6 +18,7 @@
   --on-s2: #0b0b0b; --on-s3: #0b0b0b; --on-s4: #0b0b0b;
   --on-s5: #0b0b0b; --on-s6: #ffffff; --on-s7: #ffffff; --on-s8: #0b0b0b;
   --outros: #898781; --on-outros: #0b0b0b;
+  --vazio: #c3c2b7; /* UF ainda sem votos: neutro e discreto, mas com o contorno do mapa visível */
   /* sequencial (azul) para o medidor de progresso: trilho = degrau claro da mesma rampa */
   --trilho: #cde2fb;
   --preench: #2a78d6;
@@ -36,6 +37,7 @@
     --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
     --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
     --on-s1: #0b0b0b; --on-s7: #0b0b0b;
+    --vazio: #4a4a45;
     --trilho: #104281; --preench: #3987e5;
     --bom-texto: #0ca30c;
   }
@@ -47,6 +49,7 @@
   --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
   --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
   --on-s1: #0b0b0b; --on-s7: #0b0b0b;
+  --vazio: #4a4a45;
   --trilho: #104281; --preench: #3987e5;
   --bom-texto: #0ca30c;
 }
@@ -245,7 +248,7 @@ img { max-width: 100%; }
 .bloco {
   aspect-ratio: 1; border-radius: 8px; padding: 4px 3px 7px; display: flex; flex-direction: column;
   align-items: center; justify-content: center; text-align: center; line-height: 1.1;
-  background: var(--page); color: var(--tinta-2); border: 1px solid var(--anel);
+  background: var(--vazio); color: var(--tinta); border: 1px solid var(--anel);
   cursor: pointer; position: relative; overflow: hidden; text-decoration: none;
 }
 .bloco b { font-size: 0.9375rem; }
@@ -264,11 +267,36 @@ img { max-width: 100%; }
 .uf-pr { grid-area: 6 / 3; } .uf-sp { grid-area: 6 / 4; } .uf-rj { grid-area: 6 / 5; } .uf-es { grid-area: 6 / 6; }
 .uf-sc { grid-area: 7 / 3; } .uf-rs { grid-area: 7 / 4; } .uf-zz { grid-area: 7 / 1; }
 
+/* ---- mapa geográfico (SVG) ------------------------------------------------------------------------------- */
+.mapa-ufs .seg { margin: 10px 0 8px; }
+.mapa-geo { margin-top: 4px; }
+.mapa-geo-svg { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--fonte); }
+.mapa-geo-svg[data-tam="10"] { font-size: 10px; }
+.mapa-geo-svg[data-tam="11"] { font-size: 11px; }
+.mapa-geo-svg[data-tam="12"] { font-size: 12px; }
+.mapa-geo-svg [data-oculto] { display: none; }
+.uf { cursor: pointer; outline: none; } /* o foco é desenhado pelo contorno de destaque (.uf-destaque) */
+.uf-forma {
+  fill: var(--cor, var(--vazio)); stroke: var(--sup); stroke-width: 1.25px; stroke-linejoin: round;
+  vector-effect: non-scaling-stroke; transition: fill 0.6s ease;
+}
+.uf-destaque { fill: none; stroke: var(--tinta); stroke-width: 2.5px; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+.uf-rotulo, .chip-uf text {
+  fill: var(--sobre, var(--tinta)); font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none;
+}
+.chamada-linha { stroke: var(--tinta-2); stroke-width: 1px; pointer-events: none; }
+.chamada-ponto { fill: var(--tinta); stroke: var(--sup); stroke-width: 0.75px; pointer-events: none; }
+.chip-uf { cursor: pointer; outline: none; }
+.chip-uf rect { fill: var(--cor, var(--vazio)); stroke: var(--sup); stroke-width: 1.5px; transition: fill 0.6s ease; }
+.chip-uf:hover rect { stroke: var(--tinta); }
+.chip-exterior { cursor: default; }
+.chip-exterior:focus-visible rect { stroke: var(--tinta); stroke-width: 2.5px; }
+
 .legenda { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 0.8125rem; color: var(--tinta-2); }
 .legenda li { display: inline-flex; align-items: center; gap: 6px; list-style: none; }
 .legenda ul { display: contents; margin: 0; padding: 0; }
 .chave { width: 12px; height: 12px; border-radius: 3px; background: var(--cor, var(--outros)); flex: none; }
-.chave-vazia { background: var(--page); border: 1px solid var(--eixo); }
+.chave-vazia { background: var(--vazio); }
 
 /* ---- gráfico de evolução (linhas) ----------------------------------------------------------------------- */
 .grafico-cab { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 16px; align-items: flex-start; }
@@ -392,7 +420,7 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 0.9375rem; mar
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .medidor > span, .barra-preench, .bloco i { transition: none; }
+  .medidor > span, .barra-preench, .bloco i, .uf-forma, .chip-uf rect { transition: none; }
   .chip[data-estado="ok"] .pulso { animation: none; }
 }
 @media print {
