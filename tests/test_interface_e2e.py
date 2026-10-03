@@ -265,6 +265,41 @@ def test_aviso_de_dado_desatualizado_e_recuperacao(abrir, stack):
     esperar(page, "document.querySelector('#chip-status').textContent.includes('Ao vivo')", timeout=30000)
 
 
+# ---- acessibilidade (axe-core) -------------------------------------------------------------------------------
+@pytest.mark.parametrize("esquema", ["light", "dark"])
+@pytest.mark.parametrize("progresso, inicio_do_heroi", [(0.0, "0,00"), (0.5, ""), (1.0, "100,00")])
+def test_acessibilidade_sem_violacoes_do_axe(navegador, stack, esquema, progresso, inicio_do_heroi):
+    """Contraste, nomes acessíveis, estrutura: apuração vazia, no meio e final, nos dois temas."""
+    axe_pw = pytest.importorskip("axe_playwright_python.sync_playwright")
+    stack.sim.ir_para(progresso)
+    # bypass_csp só aqui, para o axe injetar o próprio script; as outras checagens rodam com a CSP estrita
+    ctx = navegador.new_context(viewport={"width": 1280, "height": 900}, color_scheme=esquema, locale="pt-BR", bypass_csp=True)
+    try:
+        page = ctx.new_page()
+        axe = axe_pw.Axe()
+        paginas = [
+            (f"/?{INTERVALO}", ".cand"),
+            (f"/uf/sp?{INTERVALO}#governador", "#painel-governador .cand"),
+            (f"/governadores?{INTERVALO}", ".tabela tbody tr"),
+            (f"/senadores?{INTERVALO}", ".tabela tbody tr"),
+        ]
+        for caminho, pronto in paginas:
+            page.goto(f"{stack.url}{caminho}", wait_until="networkidle")
+            esperar(page, f"document.querySelectorAll('{pronto}').length > 0")
+            if caminho.startswith("/?"):
+                esperar(page, f"document.querySelector('.heroi-num').textContent.startsWith('{inicio_do_heroi}')")
+                page.wait_for_timeout(2500)  # a tabela e o mapa (arquivos por UF) chegam depois do total nacional
+            page.wait_for_timeout(1200)
+            violacoes = axe.run(page).response["violations"]
+            resumo = [
+                f"{v['id']} [{v['impact']}] {v['help']}: " + "; ".join(f"{n['target']} {n['failureSummary'].splitlines()[-1].strip()}" for n in v["nodes"][:3])
+                for v in violacoes
+            ]
+            assert not violacoes, f"{esquema} {caminho} @{progresso}:\n" + "\n".join(resumo)
+    finally:
+        ctx.close()
+
+
 # ---- celular ------------------------------------------------------------------------------------------------
 @pytest.mark.parametrize("caminho", ["/", "/uf/sp", "/senadores"])
 def test_no_celular_a_pagina_nao_rola_na_horizontal(abrir, caminho):

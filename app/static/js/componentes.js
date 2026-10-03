@@ -75,7 +75,7 @@ export class Heroi {
     this.medidor.setAttribute("aria-valuenow", String(Math.round(n)));
     this.medidor.setAttribute("aria-label", `${texto}% das seções totalizadas`);
     const partes = [`${fmt.inteiro(s.st)} de ${fmt.inteiro(s.ts)} seções`];
-    partes.push(r.totalizado_em ? `última totalização às ${fmt.hora(r.totalizado_em)}` : "apuração ainda não iniciada");
+    partes.push(r.totalizado_em ? `última totalização às ${fmt.hora(r.totalizado_em)} (horário de Brasília)` : "apuração ainda não iniciada");
     this.sub.textContent = partes.join(" · ");
   }
 }

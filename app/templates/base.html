@@ -11,7 +11,7 @@
 </head>
 <body data-pagina="{{ pagina }}"{% block dados %}{% endblock %}>
   <a class="pular" href="#conteudo">Ir para o conteúdo</a>
-  <div id="faixa-simulado" class="faixa-simulado" hidden>DADOS SIMULADOS · ambiente de teste, não são resultados reais</div>
+  <aside id="faixa-simulado" class="faixa-simulado" aria-label="Aviso: dados simulados" hidden>DADOS SIMULADOS · ambiente de teste, não são resultados reais</aside>
 
   <header class="topo">
     <div class="contem">
@@ -29,7 +29,7 @@
           </div>
         </a>
         <div class="topo-acoes">
-          <span id="chip-status" class="chip" data-estado="atencao" role="status" aria-live="polite"><span>Conectando…</span></span>
+          <span id="chip-status" class="chip" data-estado="atencao"><span>Conectando…</span></span>
           <button id="btn-tema" class="btn-icone" type="button" aria-label="Alternar tema claro/escuro"></button>
         </div>
       </div>
@@ -61,6 +61,7 @@
     </footer>
   </div>
 
+  <div id="anuncio" class="so-leitor" role="status" aria-live="polite"></div>
   <div id="dica" class="dica" role="tooltip" hidden></div>
   <script type="module" src="{{ url_for('static', filename='js/' ~ pagina ~ '.js') }}"></script>
 </body>

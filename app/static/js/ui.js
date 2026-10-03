@@ -107,5 +107,13 @@ export class Casca {
     }
     this.chip.dataset.estado = estado;
     limpar(this.chip).append(icone(icon), h("span", { texto }));
+    // O texto do chip muda a cada segundo (idade da atualização); para leitores de tela só
+    // anunciamos quando a SITUAÇÃO muda (ao vivo, desatualizado, pausado...), nunca o contador.
+    if (estado !== this.estadoAnunciado) {
+      this.estadoAnunciado = estado;
+      const anuncio = document.getElementById("anuncio");
+      if (anuncio && estado !== "ok") anuncio.textContent = texto;
+      else if (anuncio) anuncio.textContent = "Dados do TSE sendo atualizados normalmente.";
+    }
   }
 }
