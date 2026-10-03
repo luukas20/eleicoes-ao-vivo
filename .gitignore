@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Ambiente e segredos (use .env.example como modelo)
+.env
+.env.*
+!.env.example
+
+# Dados de execução (fotos em cache, histórico, logs)
+data/
+*.log
+
+# Editor / IDE
+.idea/
+.vscode/
+
+# Claude Code (configuração local)
+.claude/settings.local.json
+
+# Sistema operacional
+.DS_Store
+Thumbs.db

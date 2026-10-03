@@ -1,0 +1,9 @@
+# Normaliza finais de linha: o repositório guarda LF; o Git converte conforme o sistema
+* text=auto
+
+# Binários
+*.pdf binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.ico binary
