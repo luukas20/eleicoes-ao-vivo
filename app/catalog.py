@@ -41,8 +41,9 @@ class Alvo:
     meta: dict
 
 
-def disputas_ativas(config: dict, *, so: tuple[str, ...] = ()) -> list[Disputa]:
-    """Disputas a acompanhar: as eleições gerais do ciclo mais recente (ou as listadas em `so`)."""
+def disputas_ativas(config: dict, *, so: tuple[str, ...] = (), cargos: tuple[int, ...] = CARGOS_GERAIS) -> list[Disputa]:
+    """Disputas a acompanhar: as eleições gerais do ciclo mais recente (ou as listadas em `so`),
+    restritas aos `cargos` pedidos."""
     pleitos = config.get("pleitos", [])
     if so:
         elegiveis = [(p, e) for p in pleitos for e in p["eleicoes"] if e["cd"] in so]
@@ -57,8 +58,8 @@ def disputas_ativas(config: dict, *, so: tuple[str, ...] = ()) -> list[Disputa]:
         for abr in eleicao["abrangencias"]:
             for c in abr["cargos"]:
                 cargo = CARGOS.get(c["cd"])
-                if cargo is None or cargo.cd not in CARGOS_GERAIS:
-                    continue  # ex.: Conselheiro Distrital (25), fora do escopo
+                if cargo is None or cargo.cd not in CARGOS_GERAIS or cargo.cd not in cargos:
+                    continue  # ex.: Conselheiro Distrital (25) está fora do escopo
                 nacional_ou_todas = abr["cd"] == BRASIL
                 disputas.append(
                     Disputa(
