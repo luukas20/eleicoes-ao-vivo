@@ -3,9 +3,27 @@
 {% block dados %} data-slug="{{ slug }}"{% endblock %}
 {% block conteudo %}
 <div id="avisos" class="avisos" aria-live="polite"></div>
-<section class="cartao" aria-labelledby="t-cargo">
-  <h2 id="t-cargo">{{ titulo }} · todas as UFs</h2>
-  <p class="sub" id="resumo">Carregando…</p>
-  <div id="slot-tabela" class="rolagem"></div>
-</section>
+<div class="grade-pagina">
+  <header class="cab-local">
+    <p class="kicker">Todas as UFs</p>
+    <h1 class="uf-titulo">{{ titulo }}</h1>
+    <p class="sub" id="resumo">Carregando…</p>
+  </header>
+  <section class="sec" aria-labelledby="t-mapa">
+    <header class="sec-cab"><h2 class="sec-tit" id="t-mapa">Quem lidera em cada UF</h2><div class="sec-acoes" id="slot-seletor"></div></header>
+    <div class="cartao cartao-mapa">
+      <div class="mapa-duas">
+        <div id="slot-mapa"></div>
+        <aside class="lateral-mapa" aria-labelledby="t-partidos">
+          <h3 class="kicker" id="t-partidos">Partidos na frente</h3>
+          <div id="slot-legenda"></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+  <section class="sec" aria-labelledby="t-cargo">
+    <header class="sec-cab"><h2 class="sec-tit" id="t-cargo">{{ titulo }} · resultado por UF</h2></header>
+    <div class="cartao"><div id="slot-tabela" class="rolagem"></div></div>
+  </section>
+</div>
 {% endblock %}

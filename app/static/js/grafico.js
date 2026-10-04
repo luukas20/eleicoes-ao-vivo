@@ -2,8 +2,9 @@
 //
 // Cada ponto é um momento em que o painel recebeu números novos do TSE. Mira vertical que acompanha o
 // ponteiro (mouse, toque ou setas do teclado) com uma dica que lista todas as linhas naquele ponto, legenda
-// sempre presente, rótulos diretos nas pontas só quando cabem sem colidir, e uma tabela equivalente.
-import { h, limpar, svg } from "./dom.js";
+// sempre presente, rótulos diretos nas pontas (etiquetas na cor do partido, afastadas para não se sobreporem)
+// e uma tabela equivalente.
+import { h, limpar, segmentado, svg } from "./dom.js";
 import { Atualizador } from "./net.js";
 import * as dica from "./dica.js";
 import * as fmt from "./fmt.js";
@@ -12,6 +13,9 @@ const MIN_PONTOS = 2;
 // passos possíveis do eixo de horário, em segundos (de 5 s, nos primeiros instantes, a 4 h)
 const PASSOS_SEGUNDOS = [5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 14400];
 const DESLOCAMENTO_BRASILIA_S = 3 * 3600; // UTC-3 o ano todo (sem horário de verão desde 2019)
+const MAX_AMOSTRAS = 40;   // até aqui, cada atualização do TSE aparece como um pontinho na linha
+const ALTURA_ETIQUETA = 22;
+const FOLGA_ETIQUETAS = 4; // espaço mínimo entre duas etiquetas de ponta
 
 // Faixa do eixo Y em números redondos: as duas pontas do eixo sempre têm marcação.
 function escalaY(valores) {
@@ -27,6 +31,27 @@ function escalaY(valores) {
   return { baixo, alto, passo };
 }
 
+/** Afasta posições verticais (ordenadas) para que fiquem a `passo` uma da outra, deslocando o grupo o mínimo possível. */
+function afastar(ideais, passo, topo, base) {
+  const pos = [...ideais];
+  for (let i = 1; i < pos.length; i++) pos[i] = Math.max(pos[i], pos[i - 1] + passo);
+  const deslocamento = pos.reduce((soma, p, i) => soma + (p - ideais[i]), 0) / (pos.length || 1);
+  let subir = deslocamento;
+  if (pos.length) subir = Math.min(subir, pos[0] - topo);          // não passa do topo do desenho
+  if (pos.length) subir = Math.max(subir, pos.at(-1) - base);      // nem da base
+  return pos.map((p) => p - subir);
+}
+
+/** Esqueleto do gráfico (antes de haver linhas para desenhar): a base e três linhas apagadas, pontilhadas. */
+function esqueleto() {
+  const raiz = svg("svg", { viewBox: "0 0 600 150", class: "esqueleto", "aria-hidden": "true", focusable: "false", preserveAspectRatio: "none" });
+  raiz.append(svg("line", { class: "eixo-linha", x1: 0, x2: 600, y1: 142, y2: 142 }));
+  for (const y of [38, 76, 112]) {
+    raiz.append(svg("path", { class: "fantasma", d: `M0 ${y + 8} C 120 ${y + 8}, 200 ${y - 8}, 320 ${y}, 440 ${y + 8}, 520 ${y - 4}, 600 ${y - 2}` }));
+  }
+  return raiz;
+}
+
 export class GraficoEvolucao {
   /** `url`: endpoint /api/v1/historico/...; `metaCinquenta`: marca a linha de 50% quando ela cabe no gráfico. */
   constructor({ url, titulo = "Evolução da apuração", metaCinquenta = false, intervaloMs = 15000 }) {
@@ -36,6 +61,7 @@ export class GraficoEvolucao {
     this.larg = 0;
     this.indice = null;
     this.geo = null;
+    this.jaDesenhou = false; // a animação de entrada das linhas só acontece na primeira pintura
     this.montar(titulo);
     this.atualizador = new Atualizador({
       url,
@@ -76,29 +102,28 @@ export class GraficoEvolucao {
   // ---- DOM fixo ---------------------------------------------------------------------------------------
   montar(titulo) {
     this.legenda = h("ul", { class: "legenda-linhas" });
-    this.nota = h("p", { class: "sub" });
-    this.vazio = h("p", { class: "vazio", hidden: true });
+    this.nota = h("p", { class: "grafico-nota" });
+    this.mensagem = h("p", { class: "vazio-texto" });
+    this.vazio = h("div", { class: "vazio vazio--grafico", hidden: true }, esqueleto(), this.mensagem);
     this.area = h("div", {
       class: "grafico-area", tabindex: "0", role: "group",
       "aria-label": "Gráfico de evolução. Use as setas para a esquerda e a direita para percorrer os momentos.",
     });
     this.tabelaBox = h("div", { class: "grafico-tabela", hidden: true });
-    const botoesEixo = [["hora", "Horário"], ["secoes", "% das seções"]].map(([modo, rotulo]) =>
-      h("button", {
-        type: "button", "aria-pressed": String(modo === this.modo), dados: { modo }, texto: rotulo,
-        onclick: () => this.definirModo(modo),
-      }));
-    this.botoesEixo = botoesEixo;
-    this.botaoTabela = h("button", {
-      type: "button", class: "btn-texto", "aria-pressed": "false", texto: "Ver como tabela",
-      onclick: () => this.alternarTabela(),
+    // os controles são os mesmos do mapa (Mapa | Blocos): um indicador que desliza até a opção ativa
+    this.eixo = segmentado({
+      rotulo: "Eixo horizontal", ativo: this.modo, aoEscolher: (modo) => this.definirModo(modo),
+      opcoes: [{ valor: "hora", texto: "Horário" }, { valor: "secoes", texto: "% das seções" }],
     });
-    this.el = h("section", { class: "cartao grafico" },
-      h("div", { class: "grafico-cab" },
-        h("div", {}, h("h2", { texto: titulo }), this.nota),
-        h("div", { class: "grafico-ctl" },
-          h("div", { class: "seg", role: "group", "aria-label": "Eixo horizontal" }, ...botoesEixo), this.botaoTabela)),
-      this.legenda, this.vazio, this.area, this.tabelaBox);
+    this.visao = segmentado({
+      rotulo: "Forma de exibir a evolução", ativo: "grafico", aoEscolher: (v) => this.definirVisao(v),
+      opcoes: [{ valor: "grafico", texto: "Gráfico", icone: "linhas" }, { valor: "tabela", texto: "Tabela", icone: "tabela" }],
+    });
+    this.el = h("section", { class: "sec grafico" },
+      h("header", { class: "sec-cab" },
+        h("h2", { class: "sec-tit", texto: titulo }),
+        h("div", { class: "grafico-ctl" }, this.eixo.el, this.visao.el)),
+      h("div", { class: "cartao" }, this.legenda, this.vazio, this.area, this.tabelaBox, this.nota));
     this.area.addEventListener("keydown", (ev) => this.aoTeclado(ev));
     this.area.addEventListener("blur", () => this.esconder());
     document.addEventListener("pointerdown", (ev) => {
@@ -108,17 +133,18 @@ export class GraficoEvolucao {
 
   definirModo(modo) {
     this.modo = modo;
-    for (const b of this.botoesEixo) b.setAttribute("aria-pressed", String(b.dataset.modo === modo));
+    this.eixo.definir(modo);
     this.indice = null;
     this.render();
   }
 
-  alternarTabela() {
-    const mostrar = this.tabelaBox.hidden;
-    this.tabelaBox.hidden = !mostrar;
-    this.botaoTabela.setAttribute("aria-pressed", String(mostrar));
-    this.botaoTabela.textContent = mostrar ? "Ver como gráfico" : "Ver como tabela";
-    this.area.hidden = mostrar;
+  /** Gráfico ou tabela equivalente. */
+  definirVisao(visao) {
+    const tabela = visao === "tabela";
+    this.visao.definir(visao);
+    this.tabelaBox.hidden = !tabela;
+    this.area.hidden = tabela;
+    this.esconder();
     this.render();
   }
 
@@ -130,8 +156,9 @@ export class GraficoEvolucao {
     this.pintarLegenda(d);
     const suficiente = n >= MIN_PONTOS;
     this.vazio.hidden = suficiente;
+    this.eixo.el.hidden = this.visao.el.hidden = !suficiente;
     if (!suficiente) {
-      this.vazio.textContent = n === 0
+      this.mensagem.textContent = n === 0
         ? "O gráfico aparece quando as primeiras urnas forem totalizadas e o TSE liberar os votos."
         : "Já há um registro. As linhas aparecem a partir da segunda atualização do TSE.";
       this.area.hidden = true;
@@ -154,16 +181,17 @@ export class GraficoEvolucao {
     for (const s of d.series) {
       const ultimo = [...s.pct].reverse().find((v) => v !== null && v !== undefined);
       this.legenda.append(h("li", {},
-        h("span", { class: "traco", "data-cor": String(s.cor) }), h("span", { class: "legenda-nome", texto: s.urna }),
-        ultimo !== undefined ? h("span", { class: "sub", texto: fmt.pct2(ultimo) }) : null));
+        h("span", { class: "traco", "data-cor": s.cor }), h("span", { class: "legenda-nome", texto: s.urna }),
+        s.partido ? h("span", { class: "sigla", "data-cor": s.cor, texto: s.partido }) : null,
+        ultimo !== undefined ? h("span", { class: "legenda-pct", texto: fmt.pct2(ultimo) }) : null));
     }
   }
 
   desenhar(d) {
     const W = this.larg;
-    const H = Math.round(Math.min(380, Math.max(230, W * (W < 520 ? 0.78 : 0.42))));
+    const H = Math.round(Math.min(400, Math.max(240, W * (W < 520 ? 0.8 : 0.42))));
     const rotulosNoFim = W >= 760;
-    const m = { t: 14, r: rotulosNoFim ? 150 : 16, b: 32, l: 44 };
+    const m = { t: 18, r: rotulosNoFim ? 196 : 18, b: 34, l: 46 };
     const larguraUtil = W - m.l - m.r;
     const alturaUtil = H - m.t - m.b;
 
@@ -185,7 +213,7 @@ export class GraficoEvolucao {
     const grade = [];
     for (let v = Math.ceil(yMin / passoY) * passoY; v <= yMax; v += passoY) {
       grade.push(svg("line", { class: "grade-linha", x1: m.l, x2: W - m.r, y1: py(v), y2: py(v) }));
-      const t = svg("text", { class: "eixo-txt", x: m.l - 8, y: py(v) + 4, "text-anchor": "end" });
+      const t = svg("text", { class: "eixo-txt", x: m.l - 10, y: py(v) + 4, "text-anchor": "end" });
       t.textContent = `${v}%`;
       grade.push(t);
     }
@@ -197,8 +225,8 @@ export class GraficoEvolucao {
     const eixo = [svg("line", { class: "eixo-linha", x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b })];
     for (const { valor, rotulo } of this.marcasX(x0, x1, W)) {
       const x = px(valor);
-      eixo.push(svg("line", { class: "eixo-linha", x1: x, x2: x, y1: H - m.b, y2: H - m.b + 4 }));
-      const t = svg("text", { class: "eixo-txt", x, y: H - m.b + 18, "text-anchor": "middle" });
+      eixo.push(svg("line", { class: "eixo-linha", x1: x, x2: x, y1: H - m.b, y2: H - m.b + 5 }));
+      const t = svg("text", { class: "eixo-txt", x, y: H - m.b + 20, "text-anchor": "middle" });
       t.textContent = rotulo;
       eixo.push(t);
     }
@@ -206,7 +234,9 @@ export class GraficoEvolucao {
 
     // linhas (cada série em segmentos contínuos; lacunas = candidato sem voto naquele ponto)
     const linhas = [];
+    const amostras = [];
     const pontaFinal = [];
+    const comPontinhos = xs.length <= MAX_AMOSTRAS && W >= 480;
     for (const s of d.series) {
       let caminho = "";
       let aberto = false;
@@ -219,41 +249,76 @@ export class GraficoEvolucao {
         caminho += `${aberto ? "L" : "M"}${xs[i].toFixed(1)} ${py(v).toFixed(1)}`;
         aberto = true;
         ultimo = { x: xs[i], y: py(v), v };
+        if (comPontinhos) amostras.push(svg("circle", { class: "amostra", "data-cor": s.cor, cx: xs[i].toFixed(1), cy: py(v).toFixed(1), r: 3 }));
       });
-      linhas.push(svg("path", { class: "serie", "data-cor": String(s.cor), d: caminho }));
+      linhas.push(svg("path", { class: "serie", "data-cor": s.cor, d: caminho }));
       if (ultimo) pontaFinal.push({ s, ...ultimo });
     }
     raiz.append(g("series", ...linhas));
-    raiz.append(g("pontas", ...pontaFinal.map((p) => svg("circle", { class: "ponto-final", "data-cor": String(p.s.cor), cx: p.x, cy: p.y, r: 4.5 }))));
-
-    // rótulos diretos nas pontas: só se couberem sem colidir (senão a legenda e a dica carregam a informação)
-    if (rotulosNoFim && pontaFinal.length) {
-      const ordenados = [...pontaFinal].sort((a, b) => a.y - b.y);
-      const cabem = ordenados.every((p, i) => i === 0 || p.y - ordenados[i - 1].y >= 16);
-      if (cabem) {
-        raiz.append(g("rotulos-fim", ...ordenados.map((p) => {
-          const t = svg("text", { class: "rotulo-fim", x: p.x + 10, y: p.y + 4 });
-          t.textContent = `${p.s.urna} ${fmt.pct2(p.v)}`;
-          return t;
-        })));
-      }
-    }
+    if (amostras.length) raiz.append(g("amostras", ...amostras));
+    raiz.append(g("pontas", ...pontaFinal.map((p) => svg("circle", { class: "ponto-final", "data-cor": p.s.cor, cx: p.x, cy: p.y, r: 5 }))));
 
     // mira + pontos que acompanham o ponteiro
     const mira = svg("line", { class: "mira", y1: m.t, y2: H - m.b, x1: 0, x2: 0, visibility: "hidden" });
-    const pontosMira = d.series.map((s) => svg("circle", { class: "ponto-mira", "data-cor": String(s.cor), r: 4.5, cx: 0, cy: 0, visibility: "hidden" }));
+    const pontosMira = d.series.map((s) => svg("circle", { class: "ponto-mira", "data-cor": s.cor, r: 5, cx: 0, cy: 0, visibility: "hidden" }));
     raiz.append(g("mira-grupo", mira, ...pontosMira));
     const captura = svg("rect", { class: "captura", x: m.l, y: m.t, width: larguraUtil, height: alturaUtil });
     raiz.append(captura);
 
     this.geo = { xs, m, W, H, py, mira, pontosMira, raiz };
     limpar(this.area).append(raiz);
+    this.animarEntrada(linhas);
+    if (rotulosNoFim && pontaFinal.length) this.etiquetasDePonta(raiz, captura, pontaFinal, m, H);
     captura.addEventListener("pointermove", (ev) => this.aoPonteiro(ev));
     captura.addEventListener("pointerdown", (ev) => this.aoPonteiro(ev));
     captura.addEventListener("pointerleave", (ev) => {
       if (ev.pointerType !== "touch") this.esconder();
     });
     if (this.indice !== null && this.indice < xs.length) this.posicionarMira(this.indice);
+  }
+
+  /** As linhas se desenham da esquerda para a direita na primeira vez (depois, a cada novo dado, só se atualizam). */
+  animarEntrada(linhas) {
+    if (this.jaDesenhou) return;
+    this.jaDesenhou = true;
+    for (const linha of linhas) {
+      const comprimento = linha.getTotalLength ? Math.ceil(linha.getTotalLength()) : 0;
+      if (!comprimento) continue;
+      linha.style.setProperty("--comprimento", String(comprimento));
+      linha.classList.add("entra");
+    }
+  }
+
+  /** Etiqueta na ponta de cada linha: nome e valor sobre a cor do partido; se duas ficam juntas, uma é afastada e ligada por um traço. */
+  etiquetasDePonta(raiz, antesDe, pontas, m, H) {
+    const ordenadas = [...pontas].sort((a, b) => a.y - b.y);
+    const passo = ALTURA_ETIQUETA + FOLGA_ETIQUETAS;
+    const alturas = afastar(ordenadas.map((p) => p.y), passo, m.t + ALTURA_ETIQUETA / 2, H - m.b - ALTURA_ETIQUETA / 2);
+    const grupo = svg("g", { class: "rotulos-fim", "aria-hidden": "true" });
+    ordenadas.forEach((p, i) => {
+      const texto = svg("text", { x: p.x + 24, y: alturas[i], "dominant-baseline": "central" });
+      texto.textContent = `${p.s.urna} ${fmt.pct2(p.v)}`;
+      const rotulo = svg("g", { class: "rotulo-fim", "data-cor": p.s.cor });
+      const fundo = svg("rect", { x: p.x + 14, y: alturas[i] - ALTURA_ETIQUETA / 2, height: ALTURA_ETIQUETA, rx: 6 });
+      const ligacao = svg("path", { class: "rotulo-fim-ligacao", d: `M${p.x + 5} ${p.y} L${p.x + 14} ${alturas[i]}` });
+      rotulo.append(ligacao, fundo, texto);
+      grupo.append(rotulo);
+    });
+    raiz.insertBefore(grupo, antesDe.parentNode.querySelector(".mira-grupo"));
+    // a largura do texto só é conhecida depois de ele estar na página; nomes muito longos são encurtados para caber na margem
+    const maxLargura = m.r - 14 - 6;
+    [...grupo.children].forEach((rotulo, i) => {
+      const texto = rotulo.querySelector("text");
+      const valor = fmt.pct2(ordenadas[i].v);
+      let nome = ordenadas[i].s.urna;
+      let largura = texto.getComputedTextLength();
+      while (largura + 20 > maxLargura && nome.length > 4) {
+        nome = nome.slice(0, -1);
+        texto.textContent = `${nome.trimEnd()}… ${valor}`;
+        largura = texto.getComputedTextLength();
+      }
+      rotulo.querySelector("rect").setAttribute("width", String(Math.ceil(largura + 20)));
+    });
   }
 
   marcasX(x0, x1, W) {

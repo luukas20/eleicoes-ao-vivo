@@ -94,6 +94,38 @@ def uf(uf: str):
     return responder(dados) if dados else erro("UF desconhecida", 404)
 
 
+@bp.get("/proporcional/<slug>")
+def proporcional_nacional(slug: str):
+    """Deputado Federal ou Estadual: vagas por partido/federação (soma das UFs) e uma linha por UF."""
+    turno, falha = _turno()
+    if falha:
+        return falha
+    dados = servico().tabela_proporcional(slug, turno)
+    return responder(dados) if dados else erro("cargo proporcional não encontrado", 404)
+
+
+@bp.get("/proporcional/<slug>/<uf>")
+def proporcional_uf(slug: str, uf: str):
+    turno, falha = _turno()
+    if falha:
+        return falha
+    dados = servico().painel_proporcional(slug, uf, turno)
+    return responder(dados) if dados else erro("disputa ou UF não encontrada", 404)
+
+
+@bp.get("/proporcional/<slug>/<uf>/candidatos")
+def proporcional_candidatos(slug: str, uf: str):
+    """Candidatos da UF em ordem de votos (`?q=` nome ou número, `?agr=` partido/federação, `?pagina=`)."""
+    turno, falha = _turno()
+    if falha:
+        return falha
+    termo, agr, pagina = request.args.get("q", ""), request.args.get("agr", ""), request.args.get("pagina", "1")
+    if len(termo) > 60 or len(agr) > 20 or not pagina.isdigit() or not 1 <= int(pagina) <= 500:
+        return erro("parâmetros inválidos", 400)
+    dados = servico().buscar_candidatos_proporcional(slug, uf, termo, agr, int(pagina), turno=turno)
+    return responder(dados, etag=False) if dados else erro("disputa ou UF não encontrada (ou ainda sem dados)", 404)
+
+
 @bp.get("/historico/<slug>/<abr>")
 def historico(slug: str, abr: str):
     """Evolução do percentual dos primeiros colocados (`?n=3`, de 1 a 5) desde que o painel começou a registrar."""

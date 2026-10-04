@@ -3,26 +3,34 @@
 {% block conteudo %}
 <div id="avisos" class="avisos" aria-live="polite"></div>
 <div class="grade-pagina">
-  <div id="slot-heroi"></div>
-  <div id="slot-kpis"></div>
+  <div class="abertura">
+    <div class="abertura-esq">
+      <div id="slot-placar"></div>
+      <div id="slot-heroi"></div>
+    </div>
+    <section class="sec" aria-labelledby="t-mapa">
+      <header class="sec-cab"><h2 class="sec-tit" id="t-mapa">Quem lidera em cada UF</h2><div class="sec-acoes" id="slot-seletor"></div></header>
+      <div class="cartao">
+        <div id="slot-mapa"></div>
+        <div id="slot-legenda"></div>
+      </div>
+    </section>
+  </div>
   <div class="duas-colunas">
-    <section class="cartao" aria-labelledby="t-ranking">
-      <h2 id="t-ranking">Presidente · Brasil</h2>
-      <p class="sub">Candidatos em ordem de votos. Passe o mouse (ou use Tab) para ver os detalhes.</p>
+    <section class="sec" aria-labelledby="t-ranking">
+      <header class="sec-cab"><h2 class="sec-tit" id="t-ranking">Todos os candidatos</h2><p class="sub">Passe o mouse (ou use Tab) para ver os detalhes.</p></header>
       <div id="slot-ranking"></div>
     </section>
-    <section class="cartao" aria-labelledby="t-mapa">
-      <h2 id="t-mapa">Quem lidera em cada UF</h2>
-      <div id="slot-mapa"></div>
-      <div id="slot-legenda"></div>
+    <section class="sec" aria-labelledby="t-kpis">
+      <header class="sec-cab"><h2 class="sec-tit" id="t-kpis">Eleitorado</h2></header>
+      <div id="slot-kpis"></div>
     </section>
   </div>
   <div id="slot-grafico"></div>
-  <section class="cartao" aria-labelledby="t-tabela">
-    <h2 id="t-tabela">Resultado por UF</h2>
-    <p class="sub">A mesma informação do mapa, em tabela. Clique no título de uma coluna para ordenar.</p>
+  <section class="sec" aria-labelledby="t-tabela">
+    <header class="sec-cab"><h2 class="sec-tit" id="t-tabela">Resultado por UF</h2><p class="sub">A mesma informação do mapa, em tabela. Clique no título de uma coluna para ordenar.</p></header>
     <p class="sub nota">O TSE atualiza os arquivos de cada UF em intervalos um pouco maiores que o do total nacional; por isso o mapa e a tabela podem estar até cerca de 1 minuto atrás do total do Brasil, no topo.</p>
-    <div id="slot-tabela" class="rolagem"></div>
+    <div class="cartao"><div id="slot-tabela" class="rolagem"></div></div>
   </section>
 </div>
 {% endblock %}

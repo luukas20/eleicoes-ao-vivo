@@ -46,7 +46,7 @@ class SessaoTSE:
         return RespostaFalsa(404)
 
 
-def popular_store(store, x: float, *, cargos=(1, 3, 5)):
+def popular_store(store, x: float, *, cargos=(1, 3, 5, 6, 7, 8)):
     """Carrega no Store tudo o que o poller carregaria, gerado pelo simulador parado em `x`."""
     from app.catalog import disputas_ativas, montar_alvos
     from app.tse import parse
@@ -71,20 +71,26 @@ def popular_store(store, x: float, *, cargos=(1, 3, 5)):
     return sim
 
 
-@pytest.fixture
-def novo_app(tmp_path):
-    """Fábrica: `novo_app(x)` devolve (flask_app, store, sessao) com dados do simulador em `x` (0 a 1)."""
+def montar_app(data_dir, x: float = 0.5, **popular):
+    """App completo, sem poller, alimentado pelo simulador parado em `x` (0 a 1): devolve (flask_app, store, sessao)."""
     from app import create_app
     from app.config import Settings
     from app.store import Store
     from app.tse.client import TokenBucket, TseClient
 
-    def criar(x: float = 0.5):
-        sessao = SessaoTSE()
-        cliente = TseClient(user_agent="teste", session=sessao, bucket=TokenBucket(1000))
-        store = Store()
-        app = create_app(Settings(data_dir=tmp_path, iniciar_poller=False), store=store, client=cliente, iniciar_poller=False)
-        popular_store(store, x)
-        return app, store, sessao
+    sessao = SessaoTSE()
+    cliente = TseClient(user_agent="teste", session=sessao, bucket=TokenBucket(1000))
+    store = Store()
+    app = create_app(Settings(data_dir=data_dir, iniciar_poller=False), store=store, client=cliente, iniciar_poller=False)
+    popular_store(store, x, **popular)
+    return app, store, sessao
+
+
+@pytest.fixture
+def novo_app(tmp_path):
+    """Fábrica: `novo_app(x)` devolve (flask_app, store, sessao) com dados do simulador em `x` (0 a 1)."""
+
+    def criar(x: float = 0.5, **popular):
+        return montar_app(tmp_path, x, **popular)
 
     return criar

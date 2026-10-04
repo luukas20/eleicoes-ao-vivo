@@ -4,9 +4,9 @@
 // Os polígonos ficam numa camada escalada por uma transformação; rótulos e chamadas ficam em pixels da tela, para o
 // texto ter sempre o mesmo tamanho (nítido num celular ou num telão) e para que um rótulo só apareça dentro do
 // estado quando realmente cabe. Estados pequenos demais ganham uma "chamada": etiqueta ao lado, com uma linha até o estado.
-import { h, svg } from "./dom.js";
+import { h, segmentado, svg } from "./dom.js";
 import * as dica from "./dica.js";
-import { Mapa, descreverUf, dicaDeUf, liderDaUf } from "./componentes.js";
+import { Mapa, corDe, descreverUf, dicaDeUf, liderDaUf } from "./componentes.js";
 
 const URL_GEO = "/static/data/mapa-ufs.json";
 const COLUNA_LESTE = ["rn", "pb", "pe", "al", "se"]; // chamadas empilhadas numa coluna só, no mar a leste do Nordeste
@@ -36,7 +36,9 @@ const gravarVisao = (visao) => {
 const bate = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 
 export class MapaGeo {
-  constructor() {
+  constructor({ porPartido = false, quem = "do candidato que lidera" } = {}) {
+    this.porPartido = porPartido;
+    this.quem = quem;
     this.dados = new Map();   // uf -> linha da API
     this.itens = [];          // um por UF: { geo, a, forma, rotulo, chamada }
     this.geo = null;
@@ -60,6 +62,16 @@ export class MapaGeo {
     this.aplicar();
     new ResizeObserver(() => this.ajustar()).observe(this.caixa);
     this.ajustar();
+    // a largura das siglas depende da fonte: quando a fonte da página termina de carregar, mede e distribui tudo de novo
+    const remedir = () => {
+      this.medidas = null;
+      this.layout = "";
+      this.ajustar();
+    };
+    if (document.fonts) {
+      document.fonts.ready.then(remedir);
+      document.fonts.addEventListener?.("loadingdone", remedir);
+    }
     return true;
   }
 
@@ -89,7 +101,7 @@ export class MapaGeo {
     this.exterior = this.criarExterior();
     this.svg = svg(
       "svg",
-      { class: "mapa-geo-svg", role: "group", "aria-label": "Mapa do Brasil por UF, pintado com a cor do candidato que lidera. Cada UF abre a página dela." },
+      { class: "mapa-geo-svg", role: "group", "aria-label": `Mapa do Brasil por UF, pintado com a cor ${this.quem}. Cada UF abre a página dela.` },
       this.camadaFormas, this.camadaLinhas, this.camadaRotulos, this.camadaChips, this.exterior.el,
     );
     this.caixa.append(this.svg);
@@ -119,13 +131,13 @@ export class MapaGeo {
     const texto = svg("text");
     texto.textContent = "Exterior";
     const el = svg("g", { class: "chip-uf chip-exterior", tabindex: "0", role: "img", "aria-label": "Exterior" }, retangulo, texto);
-    dica.vincular(el, () => dicaDeUf(this.dados.get("zz")));
+    dica.vincular(el, () => dicaDeUf(this.dados.get("zz"), this.porPartido));
     return { el, retangulo, texto };
   }
 
   /** Dica e realce da UF: mouse, caneta e teclado (no toque o clique no link abre a página). */
   ligar(el, uf) {
-    dica.vincular(el, () => dicaDeUf(this.dados.get(uf)));
+    dica.vincular(el, () => dicaDeUf(this.dados.get(uf), this.porPartido));
     el.addEventListener("pointerenter", (ev) => {
       if (ev.pointerType !== "touch") this.realcar({ hover: uf });
     });
@@ -150,18 +162,26 @@ export class MapaGeo {
   }
 
   aplicar() {
-    const pintar = (el, lider) => (lider ? el.setAttribute("data-cor", String(lider.cor)) : el.removeAttribute("data-cor"));
+    const pintar = (el, lider) => (lider ? el.setAttribute("data-cor", corDe(lider, this.porPartido)) : el.removeAttribute("data-cor"));
     for (const item of this.itens) {
       const l = this.dados.get(item.geo.uf);
       const lider = liderDaUf(l);
       pintar(item.a, lider);
       pintar(item.rotulo, lider);
       if (item.chamada) pintar(item.chamada.chip, lider);
+      if (l && l.cargo) { // deputados: a UF abre direto na aba do cargo (no DF, o Distrital)
+        const destino = `/uf/${item.geo.uf}${window.location.search}#${l.cargo}`;
+        item.a.setAttribute("href", destino);
+        item.chamada?.chip.setAttribute("href", destino);
+      }
       item.a.setAttribute("aria-label", l ? descreverUf(item.geo.nome, l) : item.geo.nome);
     }
     const ex = this.dados.get("zz");
     pintar(this.exterior.el, liderDaUf(ex));
     this.exterior.el.setAttribute("aria-label", ex ? descreverUf("Exterior", ex) : "Exterior");
+    // só o Presidente tem votos no exterior; nas outras disputas a etiqueta "Exterior" não faz sentido
+    this.temExterior = this.dados.size === 0 || !!ex;
+    this.exterior.el.toggleAttribute("data-oculto", !this.temExterior);
   }
 
   // ---- layout (a cada mudança de largura) ------------------------------------------------------------------
@@ -311,17 +331,24 @@ export class MapaGeo {
  * progresso de cada UF). A escolha fica salva no navegador. Se o desenho do mapa não carregar, mostra os blocos.
  */
 export class MapaUfs {
-  constructor() {
-    this.geo = new MapaGeo();
-    this.blocos = new Mapa();
+  /**
+   * `porPartido`: nas disputas em que o candidato muda de UF para UF (Governador, Senador), a cor é a do partido de quem lidera.
+   * `quem`: como os textos se referem a quem pinta cada UF (os deputados usam "do partido ou federação mais votado").
+   */
+  constructor({ porPartido = false, quem = porPartido ? "do partido de quem lidera" : "de quem lidera" } = {}) {
+    this.geo = new MapaGeo({ porPartido, quem });
+    this.blocos = new Mapa({ porPartido, quem });
     this.ajuda = {
-      mapa: h("p", { class: "sub", texto: "Cada estado leva a cor de quem lidera nele; só os três primeiros colocados ganham cor. Passe o mouse (ou use Tab) para ver os números; clique ou toque para abrir a UF. Os estados pequenos têm a sigla numa etiqueta ao lado." }),
-      blocos: h("p", { class: "sub", texto: "Cada bloco é uma UF (EX = exterior). A cor indica o candidato à frente; a barrinha no pé do bloco mostra o quanto da UF já foi totalizado. Só os três primeiros colocados ganham cor." }),
+      mapa: h("p", { class: "sub", texto: `Cada estado leva a cor ${quem} nele. Passe o mouse (ou use Tab) para ver os números; clique ou toque para abrir a UF.` }),
+      blocos: h("p", { class: "sub", texto: `Cada bloco é uma UF${porPartido ? "" : " (EX = exterior)"}. A cor é ${quem}; a barrinha no pé mostra o quanto da UF já foi totalizado.` }),
     };
-    this.botoes = ["mapa", "blocos"].map((visao) =>
-      h("button", { type: "button", dados: { visao }, texto: visao === "mapa" ? "Mapa" : "Blocos", onclick: () => this.definir(visao, true) }));
-    this.seletor = h("div", { class: "seg", role: "group", "aria-label": "Forma de exibir as UFs" }, ...this.botoes);
-    this.el = h("div", { class: "mapa-ufs" }, this.seletor, this.ajuda.mapa, this.ajuda.blocos, this.geo.caixa, this.blocos.el);
+    // o seletor (Mapa | Blocos) fica fora do cartão: a página o coloca no cabeçalho da seção, ao lado do título
+    this.seg = segmentado({
+      rotulo: "Forma de exibir as UFs", ativo: "mapa", aoEscolher: (visao) => this.definir(visao, true),
+      opcoes: [{ valor: "mapa", texto: "Mapa", icone: "mapa" }, { valor: "blocos", texto: "Blocos", icone: "blocos" }],
+    });
+    this.seletor = this.seg.el;
+    this.el = h("div", { class: "mapa-ufs" }, h("div", { class: "mapa-ufs-ajuda" }, this.ajuda.mapa, this.ajuda.blocos), this.geo.caixa, this.blocos.el);
     this.definir(lerVisao(), false);
     this.geo.pronto.then((ok) => {
       if (ok) return;
@@ -332,7 +359,7 @@ export class MapaUfs {
 
   definir(visao, salvar) {
     this.visao = visao;
-    for (const b of this.botoes) b.setAttribute("aria-pressed", String(b.dataset.visao === visao));
+    this.seg.definir(visao);
     this.geo.caixa.hidden = visao !== "mapa";
     this.ajuda.mapa.hidden = visao !== "mapa";
     this.blocos.el.hidden = visao !== "blocos";

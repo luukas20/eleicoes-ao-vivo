@@ -46,7 +46,12 @@ _POOL = [
     (60, "CANDIDATA ZETA SIMULADA", "ZETA", "PZE", "PARTIDO ZETA", "VICE DE ZETA"),
 ]
 N_CANDIDATOS = {1: 6, 3: 4, 5: 5}
-ALFAS = {1: [6.0, 5.0, 2.0, 1.2, 0.8, 0.5], 3: [5.0, 4.0, 1.5, 0.8], 5: [4.0, 3.5, 3.0, 1.5, 0.8]}
+# Siglas de partidos REAIS, só para ensaiar as cores do painel (`mock.server --partidos-reais`); nomes e votos seguem fictícios.
+SIGLAS_REAIS_PRESIDENTE = ("PT", "PL", "PSD", "NOVO", "PSOL", "MDB")
+SIGLAS_REAIS_ESTADUAIS = ("PT", "PL", "PSD", "MDB", "UNIÃO", "PP", "Republicanos", "PSB", "PDT", "PSDB", "NOVO", "PODE", "PSOL", "Solidariedade")
+_PESOS_DEPUTADOS = [5.0, 4.2, 3.4, 3.0, 2.6, 2.2, 1.8, 1.5, 1.2, 1.0, 0.8, 0.6, 0.4, 0.3]  # um peso por agrupamento (mock/proporcional.py)
+ALFAS = {1: [6.0, 5.0, 2.0, 1.2, 0.8, 0.5], 3: [5.0, 4.0, 1.5, 0.8], 5: [4.0, 3.5, 3.0, 1.5, 0.8],
+         6: _PESOS_DEPUTADOS, 7: _PESOS_DEPUTADOS, 8: _PESOS_DEPUTADOS}
 VAGAS = {1: 1, 3: 1, 5: 2}
 NOMES_CARGO = {
     1: ("Presidente", "Presidente", "Presidente"),
@@ -193,7 +198,9 @@ class Simulacao:
     `passo()` uma vez e o repassam, garantindo coerência dentro de cada resposta.
     """
 
-    def __init__(self, duracao_s: float = 600.0, velocidade: float = 1.0, inicio: float = 0.0, relogio=time.monotonic):
+    def __init__(self, duracao_s: float = 600.0, velocidade: float = 1.0, inicio: float = 0.0, relogio=time.monotonic,
+                 partidos_reais: bool = False):
+        self.partidos_reais = partidos_reais
         self._relogio = relogio
         self._lock = threading.Lock()
         self.duracao_s = duracao_s
@@ -269,13 +276,14 @@ class Simulacao:
     def progresso_mun(cls, uf: str, k: int, passo: int) -> float:
         return _clamp(cls.progresso_uf(uf, passo) * 1.25 - 0.25 * k / N_MUNICIPIOS)
 
-    @staticmethod
-    def candidatos(cargo: int, uf: str) -> list[tuple]:
+    def candidatos(self, cargo: int, uf: str) -> list[tuple]:
         """Lista fictícia: (nº, nome, urna, sigla, partido, vice, sqcand). Presidente é igual em todo lugar."""
         idx = 0 if cargo == 1 else TODAS_ABRANGENCIAS.index(uf)
         saida = []
         for i, (n, nome, urna, sigla, partido, vice) in enumerate(_POOL[: N_CANDIDATOS[cargo]]):
             numero = n * 10 + 1 if cargo == 5 else n  # senador tem 3 dígitos
+            if self.partidos_reais:  # cada UF com uma combinação diferente de partidos (3 e 14 não têm divisor comum)
+                sigla = SIGLAS_REAIS_PRESIDENTE[i] if cargo == 1 else SIGLAS_REAIS_ESTADUAIS[(idx + 3 * i) % len(SIGLAS_REAIS_ESTADUAIS)]
             saida.append((numero, nome, urna, sigla, partido, vice, int(f"9000{cargo:02d}{idx:02d}{i:02d}")))
         return saida
 
@@ -428,6 +436,12 @@ def _situacao(cargo: int, ordem: list[int], vence_no_1o_turno: bool, final: bool
 
 def resultado(sim: Simulacao, ele: int, cargo: int, abr: str, mun: int | None = None) -> dict:
     """EA20 simulado para Brasil (só Presidente), UF ou município."""
+    if cargo in (6, 7, 8):  # deputados: só por UF (o município não é simulado)
+        if mun is not None or abr == BRASIL:
+            raise KeyError(abr)
+        from .proporcional import resultado_proporcional
+
+        return resultado_proporcional(sim, ele, cargo, abr)
     p = sim.passo()
     agg = sim.agregado(cargo, abr, mun, p)
     cands = sim.candidatos(cargo, abr)

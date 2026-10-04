@@ -15,7 +15,8 @@ from typing import Any
 
 from .catalog import Alvo, Disputa, disputas_ativas
 from .config import Settings
-from .cores import Cores
+from .cores import NEUTRO, atribuir
+from .partidos import chave_do_agrupamento, chave_do_partido, partido_representante
 from .historico import Historico, amostrar
 from .store import Snapshot, Store, chave
 from .tse.dominio import BRASIL, CARGO_POR_SLUG, UF_NOMES, UFS, nome_abrangencia
@@ -23,6 +24,8 @@ from .tse.parse import BRT, sem_acentos
 from .tse.urls import TseUrls
 
 CARGOS_DA_PAGINA_UF = ("presidente", "governador", "senador")
+SLUGS_PROPORCIONAIS = ("deputado-federal", "deputado-estadual", "deputado-distrital")
+DESTAQUES_POR_UF = 20  # candidatos mais votados que vão no painel da UF (uma página da busca); o resto vem pela busca
 TTL_MUNICIPIO_S = 90.0  # um município é consultado ao TSE enquanto alguém o pedir a cada < 90 s
 
 
@@ -39,14 +42,14 @@ def _iso_epoch(epoch: float | None) -> str | None:
 
 
 class Servico:
-    def __init__(self, settings: Settings, store: Store, *, poller=None, cores: Cores | None = None, historico: Historico | None = None):
+    def __init__(self, settings: Settings, store: Store, *, poller=None, historico: Historico | None = None):
         self.cfg = settings
         self.store = store
         self.poller = poller
-        self.cores = cores or Cores()
         self.historico = historico or Historico()
         self._cache_disputas: tuple[str, list[Disputa]] = ("", [])
         self._cache_municipios: tuple[tuple, dict] = ((), {})
+        self._cache_agrupamentos: dict[str, tuple[dict, list]] = {}  # chave do arquivo -> (dados de que saiu, agrupamentos)
         self._fotos_validas: set[tuple[int, str, str]] = set()  # (eleição, escopo, sqcand) conhecidos
         store.ao_mudar(self._ao_mudar)
 
@@ -61,18 +64,8 @@ class Servico:
         escopo_foto = BRASIL if cargo["cd"] == 1 else abr["codigo"]
         ele = int(r["ele"])
         self._fotos_validas.update((ele, escopo_foto, c["sq"]) for c in r["candidatos"])
-        if (cargo["cd"] == 1 and abr["tipo"] == "br") or (cargo["cd"] in (3, 5) and abr["tipo"] == "uf"):
-            self.cores.observar(
-                self.escopo_cores(r["ele"], cargo["cd"], abr["codigo"]), r["candidatos"],
-                pct_secoes=r["secoes"].get("pst", {}).get("n", 0.0),
-            )
         if cargo["cd"] in (1, 3, 5):  # BR e UFs; municípios não têm histórico
             self.historico.registrar(snap.chave, r)
-
-    @staticmethod
-    def escopo_cores(ele: str | int, cargo: int, uf: str) -> str:
-        """Presidente: mesma cor em todo lugar da eleição. Demais cargos: por UF."""
-        return f"{ele}:1" if cargo == 1 else f"{ele}:{cargo}:{uf}"
 
     def foto_valida(self, ele: int, escopo: str, sq: str) -> bool:
         """Só buscamos no TSE fotos de candidatos que aparecem nos arquivos (evita 404 em massa)."""
@@ -112,29 +105,41 @@ class Servico:
         cargo = CARGO_POR_SLUG.get(slug)
         if cargo is None:
             return None
-        turno = turno or self.turno_padrao()
-        return next((d for d in self.disputas() if d.cargo.cd == cargo.cd and d.turno == turno), None)
+        do_cargo = [d for d in self.disputas() if d.cargo.cd == cargo.cd]
+        achada = next((d for d in do_cargo if d.turno == (turno or self.turno_padrao())), None)
+        if achada is None and turno is None and do_cargo:
+            # Senador e deputados só têm 1º turno: quando o 2º começa e vira o padrão, eles continuam valendo (o 1º é o único que existe)
+            achada = max(do_cargo, key=lambda d: d.turno)
+        return achada
+
+    def turnos_do_cargo(self, cargo: int) -> list[int]:
+        """Turnos em que o cargo é votado (Senador e deputados: só o 1º): é o que a página do cargo oferece para escolher."""
+        return sorted({d.turno for d in self.disputas() if d.cargo.cd == cargo})
 
     # ---- peças ---------------------------------------------------------------------------------------
-    def _candidato(self, c: dict, ele: str, escopo_foto: str, escopo_cores: str) -> dict:
-        return {**c, "cor": self.cores.slot(escopo_cores, c["sq"]), "foto": f"/foto/{int(ele)}/{escopo_foto}/{c['sq']}"}
+    @staticmethod
+    def _candidato(c: dict, ele: str, escopo_foto: str, cores: dict[str, str]) -> dict:
+        return {**c, "cor": cores.get(c["sq"], NEUTRO), "foto": f"/foto/{int(ele)}/{escopo_foto}/{c['sq']}"}
 
-    def _resumo(self, c: dict | None, escopo_cores: str) -> dict | None:
+    @staticmethod
+    def _resumo(c: dict | None, cores: dict[str, str]) -> dict | None:
         if c is None:
             return None
-        return {k: c[k] for k in ("sq", "numero", "urna", "partido", "votos", "pct", "eleito")} | {"cor": self.cores.slot(escopo_cores, c["sq"])}
+        # `cor`: a da disputa nesta UF (pode ser a variante do partido); `cor_partido`: a do partido, igual em todas as UFs
+        return {k: c[k] for k in ("sq", "numero", "urna", "partido", "votos", "pct", "eleito")} | {
+            "cor": cores.get(c["sq"], NEUTRO), "cor_partido": chave_do_partido(c["partido"])}
 
     def _resultado(self, snap: Snapshot, d: Disputa, uf: str, nome_local: str | None = None) -> dict[str, Any]:
         r = snap.dados
         escopo_foto = BRASIL if d.cargo.cd == 1 else uf
-        escopo_cores = self.escopo_cores(d.ele, d.cargo.cd, uf)
+        cores = atribuir(r["candidatos"])
         return {
             "ele": r["ele"], "turno": r["turno"], "fase": r["fase"], "idg": r["idg"],
             "gerado_em": r["gerado_em"], "totalizado_em": r["totalizado_em"],
             "abrangencia": {**r["abrangencia"], "nome": nome_local or nome_abrangencia(r["abrangencia"]["codigo"])},
             "cargo": r["cargo"], "estado": r["estado"],
             "secoes": r["secoes"], "eleitorado": r["eleitorado"], "votos": r["votos"],
-            "candidatos": [self._candidato(c, d.ele, escopo_foto, escopo_cores) for c in r["candidatos"]],
+            "candidatos": [self._candidato(c, d.ele, escopo_foto, cores) for c in r["candidatos"]],
         }
 
     def _linha_uf(self, d: Disputa, uf: str) -> dict[str, Any]:
@@ -143,10 +148,10 @@ class Servico:
         if snap is None:
             return {**base, "disponivel": False}
         r = snap.dados
-        escopo_cores = self.escopo_cores(d.ele, d.cargo.cd, uf)
+        cores = atribuir(r["candidatos"])
         vagas = (r["cargo"] or {}).get("vagas") or 1
         com_votos = [c for c in r["candidatos"] if c["votos"] > 0]
-        top = [self._resumo(c, escopo_cores) for c in com_votos[: max(2, vagas + 1)]]
+        top = [self._resumo(c, cores) for c in com_votos[: max(2, vagas + 1)]]
         # margem = distância entre quem ocupa a última vaga e o primeiro colocado fora das vagas
         # (1º x 2º com uma vaga; 2º x 3º no Senado, que elege dois por UF). Cálculo do painel.
         margem = None
@@ -165,12 +170,11 @@ class Servico:
         snap = self.store.get(chave("u", d.ele, d.cargo.cd, BRASIL))
         if snap is None:
             return []
-        escopo = self.escopo_cores(d.ele, d.cargo.cd, BRASIL)
-        itens = [
-            {"sq": c["sq"], "cor": self.cores.slot(escopo, c["sq"]), "urna": c["urna"], "numero": c["numero"], "partido": c["partido"]}
-            for c in snap.dados["candidatos"]
+        cores = atribuir(snap.dados["candidatos"])
+        return [  # só quem já tem votos, na ordem do ranking (o resto não aparece no mapa)
+            {"sq": c["sq"], "cor": cores.get(c["sq"], NEUTRO), "urna": c["urna"], "numero": c["numero"], "partido": c["partido"]}
+            for c in snap.dados["candidatos"] if c["votos"] > 0
         ]
-        return sorted((i for i in itens if i["cor"] > 0), key=lambda i: i["cor"])
 
     # ---- respostas da API -------------------------------------------------------------------------------
     def meta(self) -> dict[str, Any]:
@@ -214,7 +218,7 @@ class Servico:
         if d is None:
             return None
         return {
-            "slug": slug, "nome": d.cargo.nome, "turno": d.turno, "ele": d.ele, "turnos": self.turnos(),
+            "slug": slug, "nome": d.cargo.nome, "turno": d.turno, "ele": d.ele, "turnos": self.turnos_do_cargo(d.cargo.cd),
             "vagas": 2 if d.cargo.cd == 5 else 1,
             "linhas": [self._linha_uf(d, uf) for uf in d.ufs],
         }
@@ -234,7 +238,11 @@ class Servico:
                 "slug": slug, "nome": d.cargo.nome, "ele": d.ele, "turno": d.turno,
                 "disponivel": snap is not None, "resultado": self._resultado(snap, d, uf) if snap else None,
             })
-        return {"uf": uf, "nome": UF_NOMES[uf], "turno": turno, "turnos": self.turnos(), "disputas": disputas_uf}
+        proporcionais = [
+            {"slug": d.cargo.slug, "nome": d.cargo.nome}
+            for d in self.disputas() if d.cargo.tipo == "proporcional" and d.turno == turno and uf in d.ufs
+        ]
+        return {"uf": uf, "nome": UF_NOMES[uf], "turno": turno, "turnos": self.turnos(), "disputas": disputas_uf, "proporcionais": proporcionais}
 
     # ---- evolução ao longo da apuração ---------------------------------------------------------------------------
     def evolucao(self, slug: str, abr: str, turno: int | None = None, n: int = 3) -> dict[str, Any]:
@@ -257,12 +265,12 @@ class Servico:
         nomes = {c["sq"]: c for c in snap.dados["candidatos"]} if snap else {}
         ultimo = pontos[-1]["c"]
         lideres = sorted(ultimo, key=lambda sq: -ultimo[sq][0])[:n]
-        escopo = self.escopo_cores(d.ele, d.cargo.cd, abr)
+        cores = atribuir(snap.dados["candidatos"]) if snap else {}
         for sq in lideres:
             c = nomes.get(sq, {})
             saida["series"].append({
                 "sq": sq, "urna": c.get("urna", sq), "numero": c.get("numero", ""), "partido": c.get("partido", ""),
-                "cor": self.cores.slot(escopo, sq),
+                "cor": cores.get(sq, NEUTRO),
                 "pct": [p["c"].get(sq, [0, None])[1] if sq in p["c"] else None for p in amostra],
                 "votos": [p["c"][sq][0] if sq in p["c"] else None for p in amostra],
             })
@@ -332,6 +340,190 @@ class Servico:
             "uf": uf, "nome_uf": UF_NOMES[uf], "turno": turno, "turnos": self.turnos(),
             "municipio": {"cd": municipio["cd"], "nome": municipio["nome"], "capital": municipio["capital"], "zonas": len(municipio["zonas"])},
             "disputas": disputas,
+        }
+
+    # ---- cargos proporcionais (deputados) --------------------------------------------------------------------
+    @staticmethod
+    def _rotulo_composicao(composicao: str) -> str:
+        """"PP / UNIÃO" -> "PP/UNIÃO"."""
+        return "/".join(p.strip() for p in (composicao or "").split("/") if p.strip())
+
+    def _agrupamentos(self, snap: Snapshot) -> list[dict[str, Any]]:
+        """Partidos isolados e federações de uma UF, com votos, vagas (provisórias até a totalização final) e candidatos.
+
+        Guardado por arquivo: a visão nacional pede os das 27 UFs a cada consulta, e eles só mudam quando o arquivo muda.
+        """
+        guardado = self._cache_agrupamentos.get(snap.chave)
+        if guardado is not None and guardado[0] is snap.dados:
+            return guardado[1]
+        grupos = self._calcular_agrupamentos(snap.dados)
+        self._cache_agrupamentos[snap.chave] = (snap.dados, grupos)
+        return grupos
+
+    def _calcular_agrupamentos(self, r: dict) -> list[dict[str, Any]]:
+        por_agr: dict[str, list[dict]] = {}
+        for c in r["candidatos"]:  # já em ordem de votos
+            por_agr.setdefault(c["agr"], []).append(c)
+        validos = (r["votos"] or {}).get("vv") or 0
+        # a cor de cada agrupamento é a do partido que o representa; entre os agrupamentos da UF, as parecidas são separadas
+        # (como nos candidatos). Quem está registrado não muda durante a apuração, então a cor também não.
+        representantes = [
+            {"sq": a["n"], "partido": partido_representante(a["composicao"]) or (a["partidos"][0]["sigla"] if a["partidos"] else a["nome"])}
+            for a in r["agremiacoes"]
+        ]
+        cores_uf = atribuir(representantes)
+        saida = []
+        for a in r["agremiacoes"]:
+            cands = por_agr.get(a["n"], [])
+            isolado = a["tipo"] == "i"
+            sigla = a["partidos"][0]["sigla"] if isolado and a["partidos"] else None
+            primeiro = a["partidos"][0] if a["partidos"] else {}
+            rotulo = sigla if isolado and sigla else self._rotulo_composicao(a["composicao"]) or a["nome"]
+            mais = cands[0] if cands and cands[0]["votos"] > 0 else None
+            saida.append({
+                "id": a["n"], "tipo": a["tipo"], "nome": a["nome"], "rotulo": rotulo, "composicao": self._rotulo_composicao(a["composicao"]),
+                "chave": f"f:{primeiro.get('federacao')}" if not isolado and primeiro.get("federacao") else f"p:{primeiro.get('n', a['n'])}",
+                "cor": cores_uf.get(a["n"], NEUTRO), "cor_partido": chave_do_agrupamento(a["composicao"], sigla),
+                "partidos": [{"sigla": p["sigla"], "numero": p["n"]} for p in a["partidos"]],
+                "votos_nominais": a["votos_nominais"], "votos_legenda": a["votos_legenda"], "votos_total": a["votos_total"],
+                "pct_validos": round(100 * a["votos_total"] / validos, 2) if validos else None,  # cálculo do painel
+                "vagas": a["vagas"], "candidatos": len(cands), "eleitos": sum(1 for c in cands if c["eleito"]),
+                "mais_votado": {"sq": mais["sq"], "urna": mais["urna"], "partido": mais["partido"], "votos": mais["votos"]} if mais else None,
+            })
+        saida.sort(key=lambda g: (-g["votos_total"], g["rotulo"]))
+        return saida
+
+    @staticmethod
+    def _candidato_prop(c: dict, ele: str, uf: str, posicao: int) -> dict[str, Any]:
+        destino = c.get("destino", "")
+        return {
+            "sq": c["sq"], "numero": c["numero"], "nome": c["nome"], "urna": c["urna"], "partido": c["partido"], "agr": c["agr"],
+            "cor": chave_do_partido(c["partido"]), "votos": c["votos"], "pct": c["pct"], "eleito": c["eleito"], "situacao": c["situacao"],
+            # só o que foge do normal: voto anulado (ex.: candidatura indeferida) não conta para o partido, e a lista avisa
+            "destino": "" if sem_acentos(destino).lower().startswith("valido") else destino,
+            "posicao": posicao, "foto": f"/foto/{int(ele)}/{uf}/{c['sq']}",
+        }
+
+    def _disputa_proporcional(self, slug: str, turno: int | None) -> Disputa | None:
+        cargo = CARGO_POR_SLUG.get(slug)
+        if cargo is None or cargo.tipo != "proporcional" or slug not in SLUGS_PROPORCIONAIS:
+            return None
+        return self.disputa(slug, turno)
+
+    def painel_proporcional(self, slug: str, uf: str, turno: int | None = None) -> dict[str, Any] | None:
+        """Deputado numa UF: andamento, vagas por partido/federação, mais votados e (quando o TSE já marcou) eleitos."""
+        uf = uf.lower()
+        d = self._disputa_proporcional(slug, turno)
+        if d is None or uf not in d.ufs:
+            return None
+        snap = self.store.get(chave("u", d.ele, d.cargo.cd, uf))
+        saida: dict[str, Any] = {
+            "slug": slug, "nome": d.cargo.nome, "uf": uf, "nome_uf": UF_NOMES[uf], "turno": d.turno, "ele": d.ele,
+            "turnos": self.turnos_do_cargo(d.cargo.cd), "disponivel": snap is not None,
+        }
+        if snap is None:
+            return saida
+        r = snap.dados
+        candidatos = r["candidatos"]
+        saida["resultado"] = {
+            "ele": r["ele"], "turno": r["turno"], "fase": r["fase"], "idg": r["idg"], "gerado_em": r["gerado_em"],
+            "totalizado_em": r["totalizado_em"], "estado": r["estado"], "cargo": r["cargo"],
+            "secoes": r["secoes"], "eleitorado": r["eleitorado"], "votos": r["votos"],
+        }
+        agrupamentos = self._agrupamentos(snap)
+        saida["agrupamentos"] = agrupamentos
+        saida["vagas_distribuidas"] = sum(g["vagas"] for g in agrupamentos)
+        saida["total_candidatos"] = len(candidatos)
+        saida["destaques"] = [self._candidato_prop(c, d.ele, uf, i + 1) for i, c in enumerate(candidatos[:DESTAQUES_POR_UF]) if c["votos"] > 0]
+        saida["eleitos"] = [self._candidato_prop(c, d.ele, uf, i + 1) for i, c in enumerate(candidatos) if c["eleito"]]
+        return saida
+
+    def buscar_candidatos_proporcional(self, slug: str, uf: str, termo: str = "", agr: str = "", pagina: int = 1, tamanho: int = 20,
+                                       turno: int | None = None) -> dict[str, Any] | None:
+        """Candidatos de uma UF em ordem de votos, com busca por nome (sem acentos) ou número e filtro por partido/federação."""
+        uf = uf.lower()
+        d = self._disputa_proporcional(slug, turno)
+        snap = self.store.get(chave("u", d.ele, d.cargo.cd, uf)) if d is not None and uf in d.ufs else None
+        if snap is None:
+            return None
+        busca = sem_acentos(termo.strip())
+        numero = busca if busca.isdigit() else ""
+        palavras = [] if numero else busca.split()
+        itens = []
+        for posicao, c in enumerate(snap.dados["candidatos"], start=1):
+            if agr and c["agr"] != agr:
+                continue
+            if numero and not c["numero"].startswith(numero):
+                continue
+            if palavras:
+                texto = sem_acentos(f"{c['nome']} {c['urna']}")
+                if not all(p in texto for p in palavras):
+                    continue
+            itens.append((posicao, c))
+        total = len(itens)
+        paginas = max(1, -(-total // tamanho))
+        pagina = min(max(1, pagina), paginas)
+        corte = itens[(pagina - 1) * tamanho: pagina * tamanho]
+        return {"total": total, "pagina": pagina, "paginas": paginas, "itens": [self._candidato_prop(c, d.ele, uf, p) for p, c in corte]}
+
+    def tabela_proporcional(self, slug: str, turno: int | None = None) -> dict[str, Any] | None:
+        """Visão nacional de um cargo proporcional: vagas por partido/federação somadas das UFs e uma linha por UF.
+
+        `deputado-estadual` inclui o DF, que elege Deputado Distrital (arquivo à parte, mesma ideia).
+        """
+        if slug not in ("deputado-federal", "deputado-estadual"):
+            return None
+        d = self._disputa_proporcional(slug, turno)
+        disputas = [d] if d else []
+        if slug == "deputado-estadual":
+            disputas += [x for x in [self._disputa_proporcional("deputado-distrital", turno)] if x]
+        if not disputas:
+            return None
+        linhas, soma = [], {}
+        vagas_total = vagas_distribuidas = 0
+        for disp in disputas:
+            for uf in disp.ufs:
+                base = {"codigo": uf, "nome": UF_NOMES[uf], "cargo": disp.cargo.slug}
+                snap = self.store.get(chave("u", disp.ele, disp.cargo.cd, uf))
+                if snap is None:
+                    linhas.append({**base, "disponivel": False})
+                    continue
+                r = snap.dados
+                grupos = self._agrupamentos(snap)
+                vagas = (r["cargo"] or {}).get("vagas") or 0
+                vagas_total += vagas
+                vagas_distribuidas += sum(g["vagas"] for g in grupos)
+                com_votos = [g for g in grupos if g["votos_total"] > 0]
+                top = [{
+                    "sq": g["id"], "numero": "", "urna": g["rotulo"], "partido": g["rotulo"], "votos": g["votos_total"],
+                    "pct": {"t": f"{g['pct_validos']:.2f}".replace(".", ","), "n": g["pct_validos"]}, "eleito": False,
+                    "cor": g["cor_partido"], "cor_partido": g["cor_partido"], "vagas": g["vagas"],  # entre UFs vale a cor estável
+                    "bancada": True,  # a linha é um partido/federação (não um candidato): o mapa e as dicas falam de vagas
+                } for g in com_votos[:3]]
+                mais = r["candidatos"][0] if r["candidatos"] and r["candidatos"][0]["votos"] > 0 else None
+                linhas.append({
+                    **base, "disponivel": True, "andamento": r["estado"]["andamento"], "divulga": r["estado"]["divulga"],
+                    "final": r["estado"]["totalizacao_final"], "totalizado_em": r["totalizado_em"],
+                    "secoes": {k: r["secoes"].get(k) for k in ("ts", "st", "pst")},
+                    "vagas": vagas, "vagas_distribuidas": sum(g["vagas"] for g in grupos), "top": top,
+                    "margem_pp": round(top[0]["pct"]["n"] - top[1]["pct"]["n"], 2) if len(top) > 1 else None,
+                    "mais_votado": {"sq": mais["sq"], "urna": mais["urna"], "partido": mais["partido"], "votos": mais["votos"],
+                                    "cor": chave_do_partido(mais["partido"]), "foto": f"/foto/{int(disp.ele)}/{uf}/{mais['sq']}"} if mais else None,
+                })
+                for g in grupos:
+                    acumulado = soma.setdefault(g["chave"], {
+                        "chave": g["chave"], "rotulo": g["rotulo"], "nome": g["nome"], "composicao": g["composicao"], "tipo": g["tipo"],
+                        "cor": g["cor_partido"], "vagas": 0, "votos": 0, "ufs": 0,
+                    })
+                    acumulado["vagas"] += g["vagas"]
+                    acumulado["votos"] += g["votos_total"]
+                    acumulado["ufs"] += 1 if g["vagas"] else 0
+        distribuicao = sorted(soma.values(), key=lambda g: (-g["vagas"], -g["votos"], g["rotulo"]))
+        linhas.sort(key=lambda x: x["nome"])
+        return {
+            "slug": slug, "nome": CARGO_POR_SLUG[slug].nome, "turno": disputas[0].turno, "ele": disputas[0].ele,
+            "turnos": self.turnos_do_cargo(disputas[0].cargo.cd),
+            "vagas_total": vagas_total, "vagas_distribuidas": vagas_distribuidas, "distribuicao": distribuicao, "ufs": linhas,
         }
 
     # ---- frescor (volátil: vai em cabeçalhos, nunca no corpo dos dados) -------------------------------------

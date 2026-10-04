@@ -4,6 +4,7 @@ import { Atualizador } from "./net.js";
 import { Casca } from "./ui.js";
 import { Avisos } from "./componentes.js";
 import { Disputas } from "./disputas.js";
+import * as fmt from "./fmt.js";
 
 const casca = new Casca();
 const { uf, nomeUf, codigo } = document.body.dataset;
@@ -32,10 +33,10 @@ const atualizador = new Atualizador({
   },
   aoDados: (d) => {
     avisoGeral.atualizar([]);
-    const nome = d.municipio.nome;
+    const nome = fmt.nome(d.municipio.nome); // o TSE publica em maiúsculas: "SÃO PAULO" -> "São Paulo"
     titulo.textContent = nome;
     migalha.textContent = nome;
-    document.title = `${nome} (${nomeUf}) · Eleições ao Vivo`;
+    document.title = `${nome} (${nomeUf}) · Eleições 2026 ao Vivo`;
     casca.atualizarContexto({ turno: d.turno, turnos: d.turnos });
     disputas ??= new Disputas({
       barraAbas: document.getElementById("abas"),

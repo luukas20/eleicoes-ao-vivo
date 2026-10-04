@@ -1,7 +1,8 @@
-// Governadores / Senadores: uma linha por UF, com os primeiros colocados.
+// Governadores / Senadores: mapa pelo partido de quem lidera e uma linha por UF, com os primeiros colocados.
 import { Atualizador } from "./net.js";
 import { Casca } from "./ui.js";
-import { Avisos, TabelaUfs } from "./componentes.js";
+import { Avisos, Legenda, TabelaUfs } from "./componentes.js";
+import { MapaUfs } from "./mapa.js";
 
 const casca = new Casca();
 const slug = document.body.dataset.slug;
@@ -10,7 +11,12 @@ const consulta = turno ? `?turno=${encodeURIComponent(turno)}` : "";
 
 const avisos = new Avisos(document.getElementById("avisos"));
 const senado = slug === "senador";
-const tabela = new TabelaUfs({ posicoes: senado ? 3 : 2, vagas: senado ? 2 : 1, semCor: true });
+const mapa = new MapaUfs({ porPartido: true });
+const legenda = new Legenda({ porPartido: true, lista: true });
+const tabela = new TabelaUfs({ posicoes: senado ? 3 : 2, vagas: senado ? 2 : 1, comPartido: true });
+document.getElementById("slot-mapa").append(mapa.el);
+document.getElementById("slot-seletor").append(mapa.seletor);
+document.getElementById("slot-legenda").append(legenda.el);
 document.getElementById("slot-tabela").append(tabela.el);
 const resumo = document.getElementById("resumo");
 
@@ -22,6 +28,8 @@ new Atualizador({
   aoDados: (d) => {
     casca.atualizarContexto({ turno: d.turno, turnos: d.turnos });
     avisos.atualizar([]);
+    mapa.atualizar(d.linhas);
+    legenda.atualizar(d.linhas);
     tabela.atualizar(d.linhas);
     const disponiveis = d.linhas.filter((l) => l.disponivel);
     const iniciadas = disponiveis.filter((l) => l.andamento !== "n").length;

@@ -91,7 +91,8 @@ def criar_app(sim: Simulacao | None = None) -> Flask:
         if not m or m["abr"] != abr or int(m["ele"]) != ele:
             return Response(status=404)
         cargo, mun = int(m["cargo"]), (int(m["mun"]) if m["mun"] else None)
-        permitido = (ele == ELE_PRESIDENTE and cargo == 1) or (ele == ELE_ESTADUAL and cargo in (3, 5))
+        deputado_ok = cargo == 6 or (cargo == 7 and abr != "df") or (cargo == 8 and abr == "df")  # o DF elege Distrital, não Estadual
+        permitido = (ele == ELE_PRESIDENTE and cargo == 1) or (ele == ELE_ESTADUAL and (cargo in (3, 5) or (cargo in (6, 7, 8) and deputado_ok)))
         if not permitido or (abr == BRASIL and (cargo != 1 or mun is not None)) or (abr == EXTERIOR and cargo != 1):
             return Response(status=404)
         try:
@@ -166,11 +167,13 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--duracao", type=float, default=600.0, help="segundos reais até 100%% da apuração (velocidade 1)")
     ap.add_argument("--velocidade", type=float, default=1.0)
     ap.add_argument("--inicio", type=float, default=0.0, help="fração inicial da apuração (0 a 1)")
+    ap.add_argument("--partidos-reais", action="store_true",
+                    help="usa siglas de partidos reais (PT, PL, PSD...) nos candidatos fictícios, para ensaiar as cores do painel")
     args = ap.parse_args(argv)
 
     from waitress import serve
 
-    sim = Simulacao(duracao_s=args.duracao, velocidade=args.velocidade, inicio=args.inicio)
+    sim = Simulacao(duracao_s=args.duracao, velocidade=args.velocidade, inicio=args.inicio, partidos_reais=args.partidos_reais)
     print(f"Simulador do TSE (dados FICTÍCIOS) em http://{args.host}:{args.porta}  | duração {args.duracao:.0f}s | controle em /__sim")
     serve(criar_app(sim), host=args.host, port=args.porta, threads=8)
 

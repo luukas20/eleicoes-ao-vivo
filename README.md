@@ -6,15 +6,17 @@ Painel **não oficial** de acompanhamento ao vivo da apuração das eleições b
 
 ## O que já faz
 
-- **Presidente (Brasil):** progresso da totalização, comparecimento, abstenção, brancos e nulos, ranking com foto, partido e vice, **mapa do Brasil** com cada estado pintado pela cor de quem lidera (clique abre a UF; estados pequenos ganham uma etiqueta ao lado; opção de ver em blocos, com o progresso de cada UF), e tabela por UF ordenável.
+- **Presidente (Brasil):** manchete gerada pelos números ("Fulano lidera com 44,40%"), duelo dos dois primeiros com foto, faixa de participação nos votos válidos (com a marca dos 50%), progresso da totalização, comparecimento, abstenção, brancos e nulos, ranking completo com foto, partido e vice, **mapa do Brasil** com cada estado pintado pela cor de quem lidera (clique abre a UF; estados pequenos ganham uma etiqueta ao lado; opção de ver em blocos, com o progresso de cada UF), e tabela por UF ordenável.
 - **Evolução ao longo da apuração:** gráfico de linhas com o percentual dos três primeiros colocados, por horário ou por % das seções totalizadas, com dica ao passar o mouse, tocar ou usar as setas do teclado, e tabela equivalente. Existe para o Brasil e para cada UF.
-- **Governador e Senador:** tabela com todas as UFs e página de cada UF com o ranking completo (Senado com a linha das 2 vagas).
+- **Governador e Senador:** **mapa pelo partido de quem lidera** em cada UF, com a contagem de UFs por partido, tabela com todas as UFs e página de cada UF com placar e ranking completo (Senado com a linha das 2 vagas).
+- **Deputados Federal, Estadual e Distrital:** uma aba por cargo na página de cada UF (no DF, o Distrital no lugar do Estadual) e duas páginas nacionais, `/deputados-federais` e `/deputados-estaduais`. Cada UF tem um **hemiciclo** com as vagas de cada partido ou federação (na cor do partido; a federação usa a cor do partido mais conhecido dela), a tabela de bancadas (votos, % dos votos válidos, vagas e o candidato mais votado), os candidatos mais votados com **busca** por nome (sem acento), número ou partido/federação e, depois da totalização final, a lista dos **eleitos** marcados pelo TSE. A visão nacional soma as bancadas das 27 UFs, pinta o mapa pelo partido ou federação mais votado de cada UF e traz uma linha por UF. Antes da totalização final as vagas são **provisórias** (como o TSE publica durante a apuração) e o painel diz isso; "eleito" só aparece quando o próprio TSE marca.
 - **Municípios:** busca pelo nome na página de cada UF; a página do município mostra Presidente, Governador e Senador ali.
 - **Avisos honestos:** apuração não iniciada, votação do Presidente ainda não liberada (antes das 17h de Brasília), "matematicamente definido", segundo turno, totalização final e dados desatualizados.
-- **Responsivo:** celular, tablet e computador, com alvos de toque de 44 px; tema claro/escuro; sem dependências externas no navegador (nada de CDN); acessibilidade verificada com axe-core.
-- Cores dos candidatos estáveis durante a noite: a cor segue a pessoa, não a posição no ranking.
+- **Responsivo:** celular, tablet e computador, com alvos de toque de 44 px; tema claro/escuro; sem dependências externas no navegador (nada de CDN, as fontes são servidas pelo próprio painel); acessibilidade verificada com axe-core.
+- **Cores dos partidos:** cada candidato leva o tom do próprio partido (PT vermelho, PL azul, NOVO laranja...), em versões modernas calibradas entre si, com variante para o tema escuro. A cor não depende de votos nem de posição, então nunca muda durante a noite; quando dois partidos de cor parecida disputam o mesmo cargo, o menos conhecido recebe a variante clara/escura da própria cor.
+- Prévia de link (WhatsApp, redes sociais) com imagem própria e título da aba com o andamento ("86,6% apurado").
 
-Em desenvolvimento: deputados e modo telão.
+Em desenvolvimento: modo telão.
 
 ## Para a noite da apuração
 
@@ -46,6 +48,8 @@ $env:TSE_BASE="http://127.0.0.1:5001"; $env:TSE_AMBIENTE="simulado"; $env:ESCALA
 
 Controle do simulador: `http://127.0.0.1:5001/__sim` (pausar, pular para N% da apuração, injetar falhas).
 
+Para ensaiar as cores dos partidos, suba o simulador com `--partidos-reais`: os candidatos continuam fictícios (ALFA, BETA...), mas passam a ter siglas de partidos reais (PT, PL, PSD...), uma combinação diferente em cada UF.
+
 ## Como funciona
 
 ```
@@ -56,6 +60,7 @@ TSE (CDN) ──GET condicional──▶ poller (servidor) ──▶ cache em me
 - As eleições, os cargos e as URLs são descobertos a partir do arquivo de configuração do TSE (`ele-c.json`); o segundo turno entra sozinho quando o TSE o publicar.
 - Respeita as regras de uso do TSE: no máximo 100 requisições/s por IP (o painel usa no máximo 15), consulta periódica, `If-None-Match`, sem tentativas repetidas em URLs inexistentes e disjuntor global ao ver 403/429.
 - A mudança de um arquivo é detectada pelo conteúdo (hash), não pelo `idg`.
+- Os arquivos de deputados são os maiores do feed (de ~100 KB a ~300 KB cada, 54 no total) e mudam pouco a cada minuto: ficam numa camada de consulta mais lenta (30 a 90 s) que a do Presidente, Governador e Senador. A API deles é `/api/v1/proporcional/<cargo>` (visão nacional), `/<cargo>/<uf>` (painel da UF) e `/<cargo>/<uf>/candidatos?q=&agr=&pagina=` (busca); Senador e deputados só têm 1º turno e seguem valendo quando o 2º turno começa.
 
 ## Desenvolvimento
 
@@ -65,7 +70,18 @@ TSE (CDN) ──GET condicional──▶ poller (servidor) ──▶ cache em me
 .venv\Scripts\python.exe -m pytest -m e2e          # interface no Chrome (Playwright) contra o simulador
 ```
 
-Os testes usam arquivos reais do TSE capturados antes da eleição (`tests/fixtures/`, sem alteração) e dados sintéticos. Para recapturar os fixtures com poucas requisições: `python -m tools.capture`.
+Os testes usam arquivos reais do TSE capturados antes da eleição (`tests/fixtures/`, sem alteração; inclui o Deputado Distrital do DF) e dados sintéticos. Para recapturar os fixtures com poucas requisições: `python -m tools.capture` (ou `--so Distrital` para um alvo só, mantendo os demais no manifesto).
+
+### Cores dos partidos
+
+A tabela está em [`app/partidos.py`](app/partidos.py): para cada partido, a cor no tema claro, no escuro e uma variante alternativa (mesma família, bem mais clara ou escura) usada só quando outro candidato da mesma disputa tem cor parecida. As regras de atribuição estão em [`app/cores.py`](app/cores.py) e a folha de estilo [`app/static/css/partidos.css`](app/static/css/partidos.css) é **gerada**:
+
+```powershell
+.venv\Scripts\python.exe -m tools.gerar_css_partidos              # depois de mexer em app/partidos.py
+.venv\Scripts\python.exe -m tools.gerar_css_partidos --conferir   # só confere (os testes também conferem)
+```
+
+Os testes garantem contraste de leitura do texto sobre cada cor (4,5:1) nos dois temas, visibilidade das marcas no tema escuro, que os partidos principais (PT, PL, PSD, NOVO...) sejam bem distintos entre si e que a disputa real do Presidente de 2026 tenha 12 cores diferentes.
 
 ### O desenho do mapa
 
@@ -75,6 +91,8 @@ O painel não consulta o IBGE: o contorno das UFs já está em [`app/static/data
 
 - Dados: <https://resultados.tse.jus.br> (arquivos JSON; os `.jws` assinados também estão disponíveis).
 - Contornos das UFs: IBGE, Malhas Territoriais (<https://servicodados.ibge.gov.br/api/docs/malhas?versao=3>), simplificados.
+- Fontes: [Archivo](https://github.com/Omnibus-Type/Archivo) e [DM Mono](https://github.com/googlefonts/dm-mono), ambas sob a SIL Open Font License 1.1 (as licenças estão em `app/static/fonts/`).
+- Tons das cores dos partidos: partiram das cores das marcas (referência: predefinições de cor dos partidos na Wikipédia em português) e foram recalibrados em OKLCH para uso em tela.
 - Documentação técnica usada como referência: pasta [`ref/`](ref/).
 
 ## Licença

@@ -198,10 +198,23 @@ def test_servidor_serve_etag_e_304(cliente_http):
         "/simulado/ele2026/6257/dados/sp/sp99999-c0001-e006257-u.json",  # município inexistente
         "/simulado/ele2026/6257/dados/xx/xx-c0001-e006257-u.json",
         "/simulado/ele2026/6261/config/mun-e006261-cm.json",
+        "/simulado/ele2026/6259/dados/br/br-c0006-e006259-u.json",  # deputado não tem arquivo BR
+        "/simulado/ele2026/6259/dados/zz/zz-c0006-e006259-u.json",
+        "/simulado/ele2026/6259/dados/df/df-c0007-e006259-u.json",  # o DF elege Distrital, não Estadual
+        "/simulado/ele2026/6259/dados/sp/sp-c0008-e006259-u.json",  # Distrital só existe no DF
+        "/simulado/ele2026/6259/dados/sp/sp71072-c0006-e006259-u.json",  # o simulador não gera deputado por município
+        "/simulado/ele2026/6257/dados/sp/sp-c0006-e006257-u.json",  # deputado não é da eleição presidencial
     ],
 )
 def test_servidor_responde_404_para_o_que_nao_existe(cliente_http, caminho):
     assert cliente_http[0].get(caminho).status_code == 404
+
+
+@pytest.mark.parametrize("cargo, uf", [(6, "sp"), (6, "df"), (7, "sp"), (7, "ac"), (8, "df")])
+def test_servidor_serve_deputados_so_onde_o_cargo_existe(cliente_http, cargo, uf):
+    r = cliente_http[0].get(f"/simulado/ele2026/6259/dados/{uf}/{uf}-c000{cargo}-e006259-u.json")
+    assert r.status_code == 200 and r.headers["Cache-Control"].startswith("max-age=")
+    assert r.get_json()["carg"][0]["cd"] == str(cargo)
 
 
 def test_servidor_injeta_falhas_e_controla_a_simulacao(cliente_http):
@@ -239,12 +252,13 @@ def test_poller_real_contra_o_simulador_nao_gera_404_e_preenche_tudo():
         limite = time.monotonic() + 20
         while time.monotonic() < limite:
             estado = poller.estado()
-            if estado["alvos"] >= 88 and len(store.itens()) >= 88:
+            if estado["alvos"] >= 142 and len(store.itens()) >= 142:
                 break
             time.sleep(0.2)
         estado = poller.estado()
-        assert estado["alvos"] == 88  # EA11 + 2 EA12 + 2 EA14 + 83 EA20 (Presidente BR/UF, Governador, Senador)
-        assert len(store.itens()) == 88, estado["com_problema"][:5]
+        # EA11 + 2 EA12 + 2 EA14 + 83 EA20 (Presidente BR/UF, Governador, Senador) + 54 EA20 de deputados (27 + 26 + DF)
+        assert estado["alvos"] == 142
+        assert len(store.itens()) == 142, estado["com_problema"][:5]
         assert estado["total_com_problema"] == 0 and estado["cliente"]["por_status"].get("404") is None
         assert estado["cliente"]["disjuntor"]["aberto"] is False
 

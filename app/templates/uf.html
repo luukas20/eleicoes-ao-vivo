@@ -2,13 +2,20 @@
 {% block titulo %}{{ nome_uf }}{% endblock %}
 {% block dados %} data-uf="{{ uf }}" data-nome-uf="{{ nome_uf }}"{% endblock %}
 {% block conteudo %}
-<h2 class="uf-titulo">{{ nome_uf }}</h2>
-<div class="busca">
-  <label for="busca-mun" class="rotulo">Buscar município em {{ nome_uf }}</label>
-  <input id="busca-mun" class="campo" type="search" autocomplete="off" placeholder="Digite o nome do município…" aria-controls="res-mun">
-  <ul id="res-mun" class="resultados-busca" hidden></ul>
-  <p id="aviso-busca" class="so-leitor" role="status" aria-live="polite"></p>
+<div class="grade-pagina">
+  <header class="cab-local">
+    <p class="kicker">Unidade da Federação</p>
+    <h1 class="uf-titulo">{{ nome_uf }}</h1>
+    <div class="busca">
+      <label for="busca-mun" class="rotulo">Buscar município em {{ nome_uf }}</label>
+      <input id="busca-mun" class="campo" type="search" autocomplete="off" placeholder="Digite o nome do município…" aria-controls="res-mun">
+      <ul id="res-mun" class="resultados-busca" hidden></ul>
+      <p id="aviso-busca" class="so-leitor" role="status" aria-live="polite"></p>
+    </div>
+  </header>
+  <div>
+    <div id="abas" class="abas-internas" role="tablist" aria-label="Disputas em {{ nome_uf }}"></div>
+    <div id="paineis" class="paineis"></div>
+  </div>
 </div>
-<div id="abas" class="abas-internas" role="tablist" aria-label="Disputas em {{ nome_uf }}"></div>
-<div id="paineis"></div>
 {% endblock %}

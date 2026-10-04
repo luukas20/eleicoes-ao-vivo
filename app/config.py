@@ -29,7 +29,7 @@ class Settings:
     tse_base: str = "https://resultados.tse.jus.br"
     ambiente: str = "oficial"
     eleicoes: tuple[str, ...] = ()  # vazio = descobrir pelo EA11
-    cargos: tuple[int, ...] = (1, 3, 5)  # só consulta o que o painel exibe: Presidente, Governador, Senador
+    cargos: tuple[int, ...] = (1, 3, 5, 6, 7, 8)  # o que o painel exibe: Presidente, Governador, Senador e os três deputados
     user_agent: str = USER_AGENT_PADRAO
     max_rps: float = 15.0  # teto global de requisições/s ao TSE (o limite deles é 100)
     workers: int = 8

@@ -125,7 +125,7 @@ def test_evolucao_dos_tres_primeiros_no_presidente(novo_app):
     for s in d["series"]:
         assert s["votos"][-1] == atual[s["sq"]]["votos"] and s["pct"][-1] == pytest.approx(atual[s["sq"]]["pct"]["n"])
         assert s["urna"] == atual[s["sq"]]["urna"] and s["cor"] == atual[s["sq"]]["cor"]
-    assert [s["cor"] for s in d["series"]] != [0, 0, 0]  # as cores são as mesmas do ranking e do mapa
+    assert len({s["cor"] for s in d["series"]}) == 3 and "neutro" not in {s["cor"] for s in d["series"]}  # as cores são as do ranking e do mapa
 
 
 def test_evolucao_por_uf_e_parametro_n(novo_app):

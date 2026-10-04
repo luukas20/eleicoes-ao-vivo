@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block dados %} data-slug="{{ slug }}"{% endblock %}
+{% block conteudo %}
+<div id="avisos" class="avisos" aria-live="polite"></div>
+<div class="grade-pagina">
+  <div class="abertura">
+    <div class="abertura-esq">
+      <div id="slot-manchete"></div>
+      <div id="slot-heroi"></div>
+    </div>
+    <section class="sec" aria-labelledby="t-composicao">
+      <header class="sec-cab"><h2 class="sec-tit" id="t-composicao">{{ composicao }}</h2></header>
+      <div class="cartao cartao-hemiciclo" id="slot-composicao"></div>
+    </section>
+  </div>
+  <section class="sec" aria-labelledby="t-bancadas">
+    <header class="sec-cab"><h2 class="sec-tit" id="t-bancadas">Bancadas em todo o Brasil</h2><p class="sub">{{ escopo }}</p></header>
+    <div class="cartao"><div id="slot-bancadas" class="rolagem"></div></div>
+  </section>
+  <section class="sec" aria-labelledby="t-mapa">
+    <header class="sec-cab"><h2 class="sec-tit" id="t-mapa">Quem é o mais votado em cada UF</h2><div class="sec-acoes" id="slot-seletor"></div></header>
+    <div class="cartao cartao-mapa">
+      <div class="mapa-duas">
+        <div id="slot-mapa"></div>
+        <aside class="lateral-mapa" aria-labelledby="t-partidos">
+          <h3 class="kicker" id="t-partidos">Partidos e federações na frente</h3>
+          <div id="slot-legenda"></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+  <section class="sec" aria-labelledby="t-ufs">
+    <header class="sec-cab"><h2 class="sec-tit" id="t-ufs">{{ titulo }} · resultado por UF</h2><p class="sub">Clique no nome da UF para ver os candidatos. Clique no título de uma coluna para ordenar.</p></header>
+    <div class="cartao"><div id="slot-tabela" class="rolagem"></div></div>
+  </section>
+</div>
+{% endblock %}

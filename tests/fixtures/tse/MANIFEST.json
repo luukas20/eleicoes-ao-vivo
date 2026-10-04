@@ -61,5 +61,14 @@
     "bytes": 4693,
     "sha256": "146d0d61b64e64753639d016216ea3b7f2239803654495bab271ef7a47c00e6a",
     "etag": "\"452893f847e780b240ff8e5adc1f804c\""
+  },
+  {
+    "descricao": "EA20 Deputado Distrital DF",
+    "url": "https://resultados.tse.jus.br/oficial/ele2026/6259/dados/df/df-c0008-e006259-u.json",
+    "arquivo": "oficial/ele2026/6259/dados/df/df-c0008-e006259-u.json",
+    "capturado_em": "2026-10-03T20:47:53+00:00",
+    "bytes": 96631,
+    "sha256": "d09efd29958c76aada52a608351a2324f9da6041ffff2b5bdfd1c811ecd79a05",
+    "etag": "\"d4bcc120e08b85052cea66eba5bfae3d\""
   }
 ]

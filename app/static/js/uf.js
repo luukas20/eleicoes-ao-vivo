@@ -1,4 +1,4 @@
-// Página de uma UF: Presidente (na UF), Governador e Senador, em abas, e busca de municípios.
+// Página de uma UF: Presidente (na UF), Governador, Senador e os deputados, em abas, e busca de municípios.
 import { Atualizador } from "./net.js";
 import { Casca } from "./ui.js";
 import { Disputas } from "./disputas.js";
@@ -23,6 +23,7 @@ const disputas = new Disputas({
   local: nomeUf,
   aoFase: (fase) => casca.atualizarContexto({ fase }),
   historico: { uf, consulta },
+  proporcional: { uf, turno, aoFrescor: (f) => casca.definirFrescor(f), aoErro: () => casca.definirErroDeRede() },
 });
 
 new Atualizador({
@@ -32,6 +33,6 @@ new Atualizador({
   aoIndisponivel: () => {},
   aoDados: (dados) => {
     casca.atualizarContexto({ turno: dados.turno, turnos: dados.turnos });
-    disputas.atualizar(dados.disputas);
+    disputas.atualizar(dados.disputas, dados.proporcionais || []);
   },
 }).iniciar();

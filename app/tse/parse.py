@@ -244,6 +244,7 @@ def _achatar_candidatos(carg: dict[str, Any]) -> list[dict[str, Any]]:
                         "urna": c.get("nmu") or c.get("nm", ""),
                         "partido": par.get("sg", ""),
                         "partido_nome": par.get("nm", ""),
+                        "agr": str(agr.get("n", "")),
                         "agremiacao": agr.get("nm", ""),
                         "agremiacao_tipo": agr.get("tp", ""),
                         "composicao": agr.get("com", ""),
@@ -251,6 +252,7 @@ def _achatar_candidatos(carg: dict[str, Any]) -> list[dict[str, Any]]:
                         "pct": {"t": str(c.get("pvap", "")), "n": to_float(c.get("pvapn", c.get("pvap")))},
                         "eleito": c.get("e") == "s",
                         "situacao": c.get("st", ""),
+                        "destino": c.get("dvt", ""),  # destino do voto: "Válido", "Anulado"... (só depois da 1ª totalização parcial)
                         "seq": to_int(c.get("seq")),
                         "vice": (vices[0].get("nmu") or vices[0].get("nm")) if vices else None,
                         "suplentes": [s.get("nmu") or s.get("nm") for s in suplentes],
@@ -269,8 +271,10 @@ def _agremiacoes(carg: dict[str, Any]) -> list[dict[str, Any]]:
                 "n": str(p.get("n", "")),
                 "sigla": p.get("sg", ""),
                 "nome": p.get("nm", ""),
+                "federacao": str(p.get("nfed", "") or ""),
                 "votos_nominais": to_int(p.get("tvtn")),
                 "votos_legenda": to_int(p.get("tvtl")),
+                "candidatos": len(p.get("cand", []) or []),
             }
             for p in agr.get("par", []) or []
         ]

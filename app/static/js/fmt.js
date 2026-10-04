@@ -55,6 +55,19 @@ export function pontos(pp) {
   return `${pp.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} p.p.`;
 }
 
+// O TSE publica o nome de urna em maiúsculas: "FLAVIO BOLSONARO" -> "Flavio Bolsonaro" (partículas ficam minúsculas)
+export function nome(urna) {
+  return String(urna || "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/(^|[\s\-'’(])(\p{L})/gu, (_, antes, letra) => antes + letra.toLocaleUpperCase("pt-BR"))
+    .replace(/\s(Da|De|Do|Das|Dos|E)(?=\s)/g, (m) => m.toLowerCase());
+}
+
+/** 1 -> "1 vaga", 14 -> "14 vagas" */
+export function vagas(n) {
+  return `${inteiro(n)} ${Number(n) === 1 ? "vaga" : "vagas"}`;
+}
+
 export function turnoPorExtenso(turno) {
   return turno === 2 ? "Segundo turno" : "Primeiro turno";
 }

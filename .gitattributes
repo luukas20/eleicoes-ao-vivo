@@ -10,3 +10,5 @@ tests/fixtures/** -text
 *.jpeg binary
 *.png binary
 *.ico binary
+*.woff2 binary
+*.woff binary

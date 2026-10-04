@@ -1,0 +1,277 @@
+/* Cores dos partidos. GERADO por tools/gerar_css_partidos.py a partir de app/partidos.py: não edite à mão. */
+:root {
+  --c-pt: #DD0E34; --o-pt: #FFFFFF;
+  --c-pt-alt: #FF8482; --o-pt-alt: #16141C;
+  --c-pcdob: #9E122F; --o-pcdob: #FFFFFF;
+  --c-pcdob-alt: #D55C65; --o-pcdob-alt: #16141C;
+  --c-pstu: #E95048; --o-pstu: #16141C;
+  --c-pstu-alt: #A70311; --o-pstu-alt: #FFFFFF;
+  --c-pcb: #AB3B2D; --o-pcb: #FFFFFF;
+  --c-pcb-alt: #E27868; --o-pcb-alt: #16141C;
+  --c-pco: #78172D; --o-pco: #FFFFFF;
+  --c-pco-alt: #AE545F; --o-pco-alt: #FFFFFF;
+  --c-up: #2D2D34; --o-up: #FFFFFF;
+  --c-up-alt: #5D5D64; --o-up-alt: #FFFFFF;
+  --c-cidadania: #F93497; --o-cidadania: #16141C;
+  --c-cidadania-alt: #A90161; --o-cidadania-alt: #FFFFFF;
+  --c-democrata: #A4345B; --o-democrata: #FFFFFF;
+  --c-democrata-alt: #DB7290; --o-democrata-alt: #16141C;
+  --c-mobiliza: #E1909F; --o-mobiliza: #16141C;
+  --c-mobiliza-alt: #A65A69; --o-mobiliza-alt: #FFFFFF;
+  --c-psol: #8B34C5; --o-psol: #FFFFFF;
+  --c-psol-alt: #C077F9; --o-psol-alt: #16141C;
+  --c-pdt: #FC8F6E; --o-pdt: #16141C;
+  --c-pdt-alt: #BC5636; --o-pdt-alt: #FFFFFF;
+  --c-novo: #F36801; --o-novo: #16141C;
+  --c-novo-alt: #A04303; --o-novo-alt: #FFFFFF;
+  --c-solidariedade: #FE9D38; --o-solidariedade: #16141C;
+  --c-solidariedade-alt: #BD6D05; --o-solidariedade-alt: #16141C;
+  --c-psd: #F7B828; --o-psd: #16141C;
+  --c-psd-alt: #B38309; --o-psd-alt: #16141C;
+  --c-missao: #B6A643; --o-missao: #16141C;
+  --c-missao-alt: #7E6F01; --o-missao-alt: #FFFFFF;
+  --c-psb: #F5EB3D; --o-psb: #16141C;
+  --c-psb-alt: #BBA604; --o-psb-alt: #16141C;
+  --c-dc: #A97D3A; --o-dc: #16141C;
+  --c-dc-alt: #6F4A01; --o-dc-alt: #FFFFFF;
+  --c-pode: #1CDA73; --o-pode: #16141C;
+  --c-pode-alt: #08994E; --o-pode-alt: #16141C;
+  --c-mdb: #09BE8A; --o-mdb: #16141C;
+  --c-mdb-alt: #067F5C; --o-mdb-alt: #FFFFFF;
+  --c-prd: #339249; --o-prd: #16141C;
+  --c-prd-alt: #77C984; --o-prd-alt: #16141C;
+  --c-pv: #146D34; --o-pv: #FFFFFF;
+  --c-pv-alt: #5BA26B; --o-pv-alt: #16141C;
+  --c-rede: #6FC9A8; --o-rede: #16141C;
+  --c-rede-alt: #329072; --o-rede-alt: #16141C;
+  --c-avante: #099BA5; --o-avante: #16141C;
+  --c-avante-alt: #026168; --o-avante-alt: #FFFFFF;
+  --c-uniao: #36BAEB; --o-uniao: #16141C;
+  --c-uniao-alt: #017EA4; --o-uniao-alt: #FFFFFF;
+  --c-pp: #8FCDF5; --o-pp: #16141C;
+  --c-pp-alt: #5894BA; --o-pp-alt: #16141C;
+  --c-republicanos: #0271B1; --o-republicanos: #FFFFFF;
+  --c-republicanos-alt: #4CA9EF; --o-republicanos-alt: #16141C;
+  --c-psdb: #1D85E5; --o-psdb: #16141C;
+  --c-psdb-alt: #86BFFF; --o-psdb-alt: #16141C;
+  --c-pl: #2D49C9; --o-pl: #FFFFFF;
+  --c-pl-alt: #6086FC; --o-pl-alt: #16141C;
+  --c-agir: #1D3983; --o-agir: #FFFFFF;
+  --c-agir-alt: #506FB6; --o-agir-alt: #FFFFFF;
+  --c-prtb: #1161BB; --o-prtb: #FFFFFF;
+  --c-prtb-alt: #599AEF; --o-prtb-alt: #16141C;
+  --c-r1: #7089A4; --o-r1: #16141C;
+  --c-r2: #8D9A59; --o-r2: #16141C;
+  --c-r3: #985B93; --o-r3: #FFFFFF;
+  --c-r4: #B17652; --o-r4: #16141C;
+  --c-r5: #488C94; --o-r5: #16141C;
+  --c-r6: #C3AF86; --o-r6: #16141C;
+  --c-neutro: #B8B2A3; --o-neutro: #16141C;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-tema="claro"])) {
+  --c-pt: #F83D60; --o-pt: #16141C;
+  --c-pt-alt: #C6003E; --o-pt-alt: #FFFFFF;
+  --c-pcdob: #E74258; --o-pcdob: #16141C;
+  --c-pcdob-alt: #C3163C; --o-pcdob-alt: #FFFFFF;
+  --c-pstu: #FF887C; --o-pstu: #16141C;
+  --c-pstu-alt: #CF3E38; --o-pstu-alt: #FFFFFF;
+  --c-pcb: #D06151; --o-pcb: #16141C;
+  --c-pcb-alt: #AB3F31; --o-pcb-alt: #FFFFFF;
+  --c-pco: #CA445B; --o-pco: #FFFFFF;
+  --c-pco-alt: #FF8795; --o-pco-alt: #16141C;
+  --c-up: #D0D0D7; --o-up: #16141C;
+  --c-up-alt: #97979E; --o-up-alt: #16141C;
+  --c-cidadania: #FF82B4; --o-cidadania: #16141C;
+  --c-cidadania-alt: #D8137F; --o-cidadania-alt: #FFFFFF;
+  --c-democrata: #CA5C7E; --o-democrata: #16141C;
+  --c-democrata-alt: #A73C5F; --o-democrata-alt: #FFFFFF;
+  --c-mobiliza: #E1909F; --o-mobiliza: #16141C;
+  --c-mobiliza-alt: #A65A69; --o-mobiliza-alt: #FFFFFF;
+  --c-psol: #AD5EE8; --o-psol: #16141C;
+  --c-psol-alt: #8B3AC3; --o-psol-alt: #FFFFFF;
+  --c-pdt: #FC8F6E; --o-pdt: #16141C;
+  --c-pdt-alt: #BC5636; --o-pdt-alt: #FFFFFF;
+  --c-novo: #FE913E; --o-novo: #16141C;
+  --c-novo-alt: #B55B03; --o-novo-alt: #FFFFFF;
+  --c-solidariedade: #FE9D38; --o-solidariedade: #16141C;
+  --c-solidariedade-alt: #BD6D05; --o-solidariedade-alt: #16141C;
+  --c-psd: #F7B828; --o-psd: #16141C;
+  --c-psd-alt: #B38309; --o-psd-alt: #16141C;
+  --c-missao: #C2B356; --o-missao: #16141C;
+  --c-missao-alt: #90811D; --o-missao-alt: #16141C;
+  --c-psb: #F5EB3D; --o-psb: #16141C;
+  --c-psb-alt: #BBA604; --o-psb-alt: #16141C;
+  --c-dc: #CCA162; --o-dc: #16141C;
+  --c-dc-alt: #936A29; --o-dc-alt: #FFFFFF;
+  --c-pode: #1CDA73; --o-pode: #16141C;
+  --c-pode-alt: #08994E; --o-pode-alt: #16141C;
+  --c-mdb: #2CCE99; --o-mdb: #16141C;
+  --c-mdb-alt: #059269; --o-mdb-alt: #16141C;
+  --c-prd: #5CB36C; --o-prd: #16141C;
+  --c-prd-alt: #1E7B37; --o-prd-alt: #FFFFFF;
+  --c-pv: #428F56; --o-pv: #16141C;
+  --c-pv-alt: #81C590; --o-pv-alt: #16141C;
+  --c-rede: #6FC9A8; --o-rede: #16141C;
+  --c-rede-alt: #329072; --o-rede-alt: #16141C;
+  --c-avante: #35C1CD; --o-avante: #16141C;
+  --c-avante-alt: #03818A; --o-avante-alt: #FFFFFF;
+  --c-uniao: #36BAEB; --o-uniao: #16141C;
+  --c-uniao-alt: #017EA4; --o-uniao-alt: #FFFFFF;
+  --c-pp: #8FCDF5; --o-pp: #16141C;
+  --c-pp-alt: #5894BA; --o-pp-alt: #16141C;
+  --c-republicanos: #2995DE; --o-republicanos: #16141C;
+  --c-republicanos-alt: #0067A1; --o-republicanos-alt: #FFFFFF;
+  --c-psdb: #5CAAFE; --o-psdb: #16141C;
+  --c-psdb-alt: #0071CB; --o-psdb-alt: #FFFFFF;
+  --c-pl: #486AE7; --o-pl: #FFFFFF;
+  --c-pl-alt: #8BAAFE; --o-pl-alt: #16141C;
+  --c-agir: #4A70CD; --o-agir: #FFFFFF;
+  --c-agir-alt: #84AAFE; --o-agir-alt: #16141C;
+  --c-prtb: #3F85DF; --o-prtb: #16141C;
+  --c-prtb-alt: #90BFFF; --o-prtb-alt: #16141C;
+  --c-r1: #93ACC7; --o-r1: #16141C;
+  --c-r2: #ACB979; --o-r2: #16141C;
+  --c-r3: #BC7EB6; --o-r3: #16141C;
+  --c-r4: #D59A76; --o-r4: #16141C;
+  --c-r5: #6FB0B7; --o-r5: #16141C;
+  --c-r6: #C3AF86; --o-r6: #16141C;
+  --c-neutro: #5C5F6B; --o-neutro: #FFFFFF;
+  }
+}
+:root[data-tema="escuro"] {
+  --c-pt: #F83D60; --o-pt: #16141C;
+  --c-pt-alt: #C6003E; --o-pt-alt: #FFFFFF;
+  --c-pcdob: #E74258; --o-pcdob: #16141C;
+  --c-pcdob-alt: #C3163C; --o-pcdob-alt: #FFFFFF;
+  --c-pstu: #FF887C; --o-pstu: #16141C;
+  --c-pstu-alt: #CF3E38; --o-pstu-alt: #FFFFFF;
+  --c-pcb: #D06151; --o-pcb: #16141C;
+  --c-pcb-alt: #AB3F31; --o-pcb-alt: #FFFFFF;
+  --c-pco: #CA445B; --o-pco: #FFFFFF;
+  --c-pco-alt: #FF8795; --o-pco-alt: #16141C;
+  --c-up: #D0D0D7; --o-up: #16141C;
+  --c-up-alt: #97979E; --o-up-alt: #16141C;
+  --c-cidadania: #FF82B4; --o-cidadania: #16141C;
+  --c-cidadania-alt: #D8137F; --o-cidadania-alt: #FFFFFF;
+  --c-democrata: #CA5C7E; --o-democrata: #16141C;
+  --c-democrata-alt: #A73C5F; --o-democrata-alt: #FFFFFF;
+  --c-mobiliza: #E1909F; --o-mobiliza: #16141C;
+  --c-mobiliza-alt: #A65A69; --o-mobiliza-alt: #FFFFFF;
+  --c-psol: #AD5EE8; --o-psol: #16141C;
+  --c-psol-alt: #8B3AC3; --o-psol-alt: #FFFFFF;
+  --c-pdt: #FC8F6E; --o-pdt: #16141C;
+  --c-pdt-alt: #BC5636; --o-pdt-alt: #FFFFFF;
+  --c-novo: #FE913E; --o-novo: #16141C;
+  --c-novo-alt: #B55B03; --o-novo-alt: #FFFFFF;
+  --c-solidariedade: #FE9D38; --o-solidariedade: #16141C;
+  --c-solidariedade-alt: #BD6D05; --o-solidariedade-alt: #16141C;
+  --c-psd: #F7B828; --o-psd: #16141C;
+  --c-psd-alt: #B38309; --o-psd-alt: #16141C;
+  --c-missao: #C2B356; --o-missao: #16141C;
+  --c-missao-alt: #90811D; --o-missao-alt: #16141C;
+  --c-psb: #F5EB3D; --o-psb: #16141C;
+  --c-psb-alt: #BBA604; --o-psb-alt: #16141C;
+  --c-dc: #CCA162; --o-dc: #16141C;
+  --c-dc-alt: #936A29; --o-dc-alt: #FFFFFF;
+  --c-pode: #1CDA73; --o-pode: #16141C;
+  --c-pode-alt: #08994E; --o-pode-alt: #16141C;
+  --c-mdb: #2CCE99; --o-mdb: #16141C;
+  --c-mdb-alt: #059269; --o-mdb-alt: #16141C;
+  --c-prd: #5CB36C; --o-prd: #16141C;
+  --c-prd-alt: #1E7B37; --o-prd-alt: #FFFFFF;
+  --c-pv: #428F56; --o-pv: #16141C;
+  --c-pv-alt: #81C590; --o-pv-alt: #16141C;
+  --c-rede: #6FC9A8; --o-rede: #16141C;
+  --c-rede-alt: #329072; --o-rede-alt: #16141C;
+  --c-avante: #35C1CD; --o-avante: #16141C;
+  --c-avante-alt: #03818A; --o-avante-alt: #FFFFFF;
+  --c-uniao: #36BAEB; --o-uniao: #16141C;
+  --c-uniao-alt: #017EA4; --o-uniao-alt: #FFFFFF;
+  --c-pp: #8FCDF5; --o-pp: #16141C;
+  --c-pp-alt: #5894BA; --o-pp-alt: #16141C;
+  --c-republicanos: #2995DE; --o-republicanos: #16141C;
+  --c-republicanos-alt: #0067A1; --o-republicanos-alt: #FFFFFF;
+  --c-psdb: #5CAAFE; --o-psdb: #16141C;
+  --c-psdb-alt: #0071CB; --o-psdb-alt: #FFFFFF;
+  --c-pl: #486AE7; --o-pl: #FFFFFF;
+  --c-pl-alt: #8BAAFE; --o-pl-alt: #16141C;
+  --c-agir: #4A70CD; --o-agir: #FFFFFF;
+  --c-agir-alt: #84AAFE; --o-agir-alt: #16141C;
+  --c-prtb: #3F85DF; --o-prtb: #16141C;
+  --c-prtb-alt: #90BFFF; --o-prtb-alt: #16141C;
+  --c-r1: #93ACC7; --o-r1: #16141C;
+  --c-r2: #ACB979; --o-r2: #16141C;
+  --c-r3: #BC7EB6; --o-r3: #16141C;
+  --c-r4: #D59A76; --o-r4: #16141C;
+  --c-r5: #6FB0B7; --o-r5: #16141C;
+  --c-r6: #C3AF86; --o-r6: #16141C;
+  --c-neutro: #5C5F6B; --o-neutro: #FFFFFF;
+}
+[data-cor="pt"] { --cor: var(--c-pt); --sobre: var(--o-pt); }
+[data-cor="pt-alt"] { --cor: var(--c-pt-alt); --sobre: var(--o-pt-alt); }
+[data-cor="pcdob"] { --cor: var(--c-pcdob); --sobre: var(--o-pcdob); }
+[data-cor="pcdob-alt"] { --cor: var(--c-pcdob-alt); --sobre: var(--o-pcdob-alt); }
+[data-cor="pstu"] { --cor: var(--c-pstu); --sobre: var(--o-pstu); }
+[data-cor="pstu-alt"] { --cor: var(--c-pstu-alt); --sobre: var(--o-pstu-alt); }
+[data-cor="pcb"] { --cor: var(--c-pcb); --sobre: var(--o-pcb); }
+[data-cor="pcb-alt"] { --cor: var(--c-pcb-alt); --sobre: var(--o-pcb-alt); }
+[data-cor="pco"] { --cor: var(--c-pco); --sobre: var(--o-pco); }
+[data-cor="pco-alt"] { --cor: var(--c-pco-alt); --sobre: var(--o-pco-alt); }
+[data-cor="up"] { --cor: var(--c-up); --sobre: var(--o-up); }
+[data-cor="up-alt"] { --cor: var(--c-up-alt); --sobre: var(--o-up-alt); }
+[data-cor="cidadania"] { --cor: var(--c-cidadania); --sobre: var(--o-cidadania); }
+[data-cor="cidadania-alt"] { --cor: var(--c-cidadania-alt); --sobre: var(--o-cidadania-alt); }
+[data-cor="democrata"] { --cor: var(--c-democrata); --sobre: var(--o-democrata); }
+[data-cor="democrata-alt"] { --cor: var(--c-democrata-alt); --sobre: var(--o-democrata-alt); }
+[data-cor="mobiliza"] { --cor: var(--c-mobiliza); --sobre: var(--o-mobiliza); }
+[data-cor="mobiliza-alt"] { --cor: var(--c-mobiliza-alt); --sobre: var(--o-mobiliza-alt); }
+[data-cor="psol"] { --cor: var(--c-psol); --sobre: var(--o-psol); }
+[data-cor="psol-alt"] { --cor: var(--c-psol-alt); --sobre: var(--o-psol-alt); }
+[data-cor="pdt"] { --cor: var(--c-pdt); --sobre: var(--o-pdt); }
+[data-cor="pdt-alt"] { --cor: var(--c-pdt-alt); --sobre: var(--o-pdt-alt); }
+[data-cor="novo"] { --cor: var(--c-novo); --sobre: var(--o-novo); }
+[data-cor="novo-alt"] { --cor: var(--c-novo-alt); --sobre: var(--o-novo-alt); }
+[data-cor="solidariedade"] { --cor: var(--c-solidariedade); --sobre: var(--o-solidariedade); }
+[data-cor="solidariedade-alt"] { --cor: var(--c-solidariedade-alt); --sobre: var(--o-solidariedade-alt); }
+[data-cor="psd"] { --cor: var(--c-psd); --sobre: var(--o-psd); }
+[data-cor="psd-alt"] { --cor: var(--c-psd-alt); --sobre: var(--o-psd-alt); }
+[data-cor="missao"] { --cor: var(--c-missao); --sobre: var(--o-missao); }
+[data-cor="missao-alt"] { --cor: var(--c-missao-alt); --sobre: var(--o-missao-alt); }
+[data-cor="psb"] { --cor: var(--c-psb); --sobre: var(--o-psb); }
+[data-cor="psb-alt"] { --cor: var(--c-psb-alt); --sobre: var(--o-psb-alt); }
+[data-cor="dc"] { --cor: var(--c-dc); --sobre: var(--o-dc); }
+[data-cor="dc-alt"] { --cor: var(--c-dc-alt); --sobre: var(--o-dc-alt); }
+[data-cor="pode"] { --cor: var(--c-pode); --sobre: var(--o-pode); }
+[data-cor="pode-alt"] { --cor: var(--c-pode-alt); --sobre: var(--o-pode-alt); }
+[data-cor="mdb"] { --cor: var(--c-mdb); --sobre: var(--o-mdb); }
+[data-cor="mdb-alt"] { --cor: var(--c-mdb-alt); --sobre: var(--o-mdb-alt); }
+[data-cor="prd"] { --cor: var(--c-prd); --sobre: var(--o-prd); }
+[data-cor="prd-alt"] { --cor: var(--c-prd-alt); --sobre: var(--o-prd-alt); }
+[data-cor="pv"] { --cor: var(--c-pv); --sobre: var(--o-pv); }
+[data-cor="pv-alt"] { --cor: var(--c-pv-alt); --sobre: var(--o-pv-alt); }
+[data-cor="rede"] { --cor: var(--c-rede); --sobre: var(--o-rede); }
+[data-cor="rede-alt"] { --cor: var(--c-rede-alt); --sobre: var(--o-rede-alt); }
+[data-cor="avante"] { --cor: var(--c-avante); --sobre: var(--o-avante); }
+[data-cor="avante-alt"] { --cor: var(--c-avante-alt); --sobre: var(--o-avante-alt); }
+[data-cor="uniao"] { --cor: var(--c-uniao); --sobre: var(--o-uniao); }
+[data-cor="uniao-alt"] { --cor: var(--c-uniao-alt); --sobre: var(--o-uniao-alt); }
+[data-cor="pp"] { --cor: var(--c-pp); --sobre: var(--o-pp); }
+[data-cor="pp-alt"] { --cor: var(--c-pp-alt); --sobre: var(--o-pp-alt); }
+[data-cor="republicanos"] { --cor: var(--c-republicanos); --sobre: var(--o-republicanos); }
+[data-cor="republicanos-alt"] { --cor: var(--c-republicanos-alt); --sobre: var(--o-republicanos-alt); }
+[data-cor="psdb"] { --cor: var(--c-psdb); --sobre: var(--o-psdb); }
+[data-cor="psdb-alt"] { --cor: var(--c-psdb-alt); --sobre: var(--o-psdb-alt); }
+[data-cor="pl"] { --cor: var(--c-pl); --sobre: var(--o-pl); }
+[data-cor="pl-alt"] { --cor: var(--c-pl-alt); --sobre: var(--o-pl-alt); }
+[data-cor="agir"] { --cor: var(--c-agir); --sobre: var(--o-agir); }
+[data-cor="agir-alt"] { --cor: var(--c-agir-alt); --sobre: var(--o-agir-alt); }
+[data-cor="prtb"] { --cor: var(--c-prtb); --sobre: var(--o-prtb); }
+[data-cor="prtb-alt"] { --cor: var(--c-prtb-alt); --sobre: var(--o-prtb-alt); }
+[data-cor="r1"] { --cor: var(--c-r1); --sobre: var(--o-r1); }
+[data-cor="r2"] { --cor: var(--c-r2); --sobre: var(--o-r2); }
+[data-cor="r3"] { --cor: var(--c-r3); --sobre: var(--o-r3); }
+[data-cor="r4"] { --cor: var(--c-r4); --sobre: var(--o-r4); }
+[data-cor="r5"] { --cor: var(--c-r5); --sobre: var(--o-r5); }
+[data-cor="r6"] { --cor: var(--c-r6); --sobre: var(--o-r6); }
+[data-cor="neutro"] { --cor: var(--c-neutro); --sobre: var(--o-neutro); }

@@ -1,6 +1,6 @@
 // Componentes de interface. Cada um cria seu nó uma vez (`el`) e se atualiza com `atualizar(...)`,
 // reaproveitando os elementos para as barras e os blocos animarem em vez de piscar.
-import { h, icone, limpar } from "./dom.js";
+import { definirTexto, h, icone, limpar, piscar, quebravel } from "./dom.js";
 import * as fmt from "./fmt.js";
 import * as dica from "./dica.js";
 
@@ -30,31 +30,17 @@ export class Avisos {
   }
 }
 
-// Avisos que decorrem do estado de um resultado (Presidente, Governador, Senador...).
+// Avisos que decorrem do estado de um resultado. O que a manchete do placar já diz (votos não liberados,
+// apuração não iniciada, quem lidera, segundo turno) não se repete aqui.
 export function avisosDoResultado(r) {
   const lista = [];
   const e = r.estado;
-  const lider = r.candidatos[0] && r.candidatos[0].votos > 0 ? r.candidatos[0] : null;
-  if (!e.divulga) {
-    lista.push({
-      tipo: "atencao", titulo: "Votação ainda não liberada.",
-      texto: "O TSE só libera os votos do Presidente a partir das 17h (horário de Brasília). Seções e eleitorado já aparecem.",
-    });
-  } else if (r.secoes.st === 0) {
-    lista.push({ tipo: "info", titulo: "Apuração ainda não iniciada.", texto: "Os números aparecem assim que as primeiras urnas forem totalizadas." });
-  }
-  if (e.definido === "e" && lider) {
-    lista.push({ tipo: "ok", titulo: `${lider.urna} está eleito(a) matematicamente.`, texto: "A totalização final ainda confirma o resultado." });
-  } else if (e.definido === "s") {
-    const [a, b] = r.candidatos;
-    lista.push({ tipo: "info", titulo: "Haverá segundo turno.", texto: a && b ? `Disputa entre ${a.urna} e ${b.urna}.` : "" });
-  }
   if (e.totalizacao_final) lista.push({ tipo: "ok", titulo: "Totalização final concluída." });
   if (e.sem_eleito) lista.push({ tipo: "atencao", titulo: "Sem atribuição de eleito.", texto: (e.motivos || []).join(" ") });
   return lista;
 }
 
-// ---- herói: progresso da totalização -----------------------------------------------------------------
+// ---- andamento: progresso da totalização -----------------------------------------------------------------
 export class Heroi {
   constructor({ rotulo = "Seções totalizadas" } = {}) {
     const id = novoId("heroi");
@@ -62,7 +48,7 @@ export class Heroi {
     this.preench = h("span");
     this.medidor = h("div", { class: "medidor", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100" }, this.preench);
     this.sub = h("p", { class: "sub" });
-    this.el = h("section", { class: "cartao heroi", "aria-labelledby": id },
+    this.el = h("section", { class: "heroi", "aria-labelledby": id },
       h("p", { class: "rotulo", id, texto: rotulo }), this.num, this.medidor, this.sub);
   }
 
@@ -70,6 +56,8 @@ export class Heroi {
     const s = r.secoes;
     const texto = s.pst ? s.pst.t : "0,00";
     const n = s.pst ? s.pst.n : 0;
+    if (this.ultimo !== undefined && this.ultimo !== texto) piscar(this.num);
+    this.ultimo = texto;
     limpar(this.num).append(texto, h("small", { texto: "%" }));
     this.preench.style.width = `${Math.min(100, Math.max(0, n))}%`;
     this.medidor.setAttribute("aria-valuenow", String(Math.round(n)));
@@ -80,7 +68,7 @@ export class Heroi {
   }
 }
 
-// ---- KPIs --------------------------------------------------------------------------------------------
+// ---- indicadores -------------------------------------------------------------------------------------------
 const KPIS = [
   ["eleitorado", "Eleitorado", "Eleitores aptos a votar na abrangência"],
   ["comparecimento", "Comparecimento", "Percentual sobre os eleitores das seções instaladas"],
@@ -90,9 +78,10 @@ const KPIS = [
 ];
 
 export class Kpis {
-  constructor() {
+  /** `faixa`: os cinco indicadores lado a lado (em vez de uma lista vertical). */
+  constructor({ faixa = false } = {}) {
     this.refs = {};
-    this.el = h("div", { class: "kpis" });
+    this.el = h("div", { class: faixa ? "kpis kpis--faixa" : "kpis" });
     for (const [chave, rotulo, ajuda] of KPIS) {
       const valor = h("p", { class: "kpi-valor" });
       const sub = h("p", { class: "kpi-sub" });
@@ -102,7 +91,7 @@ export class Kpis {
   }
 
   definir(chave, valor, sub) {
-    this.refs[chave].valor.textContent = valor;
+    definirTexto(this.refs[chave].valor, valor);
     this.refs[chave].sub.textContent = sub;
   }
 
@@ -135,9 +124,11 @@ export class Ranking {
 
   criarLinha(c) {
     const linha = { c };
-    linha.foto = h("img", { class: "foto", alt: "", width: "40", height: "50", loading: "lazy", decoding: "async", src: c.foto });
+    linha.pos = h("span", { class: "cand-pos", "aria-hidden": "true" });
+    linha.foto = h("img", { class: "foto", alt: "", width: "44", height: "56", loading: "lazy", decoding: "async", src: c.foto });
     linha.nome = h("span", { class: "cand-nome" });
-    linha.partido = h("span", { class: "cand-partido" });
+    linha.sigla = h("span", { class: "sigla" });
+    linha.numero = h("span", { class: "numero" });
     linha.selo = h("span", { class: "selo", hidden: true });
     linha.preench = h("span", { class: "barra-preench" });
     linha.extra = h("div", { class: "cand-extra" });
@@ -146,8 +137,9 @@ export class Ranking {
     const barra = h("div", { class: "barra", "aria-hidden": "true" },
       h("span", { class: "barra-trilho" }), linha.preench, this.metaCinquenta ? h("span", { class: "barra-meta" }) : null);
     linha.el = h("li", { class: "cand", tabindex: "0" },
+      linha.pos,
       linha.foto,
-      h("div", {}, h("div", { class: "cand-topo" }, linha.nome, linha.partido, linha.selo), barra, linha.extra),
+      h("div", {}, h("div", { class: "cand-topo" }, linha.nome, h("span", { class: "cand-partido" }, linha.sigla, linha.numero), linha.selo), barra, linha.extra),
       h("div", { class: "cand-nums" }, linha.pct, linha.votos));
     dica.vincular(linha.el, () => this.dicaDe(linha.c));
     return linha;
@@ -159,14 +151,17 @@ export class Ranking {
       h("div", { class: "dica-linha" }, h("span", { texto: c.nome })));
   }
 
-  preencher(linha, c, iniciou, r) {
+  preencher(linha, c, posicao, iniciou, r) {
     linha.c = c;
     if (linha.foto.getAttribute("src") !== c.foto) linha.foto.src = c.foto;
+    linha.pos.textContent = String(posicao + 1);
     linha.nome.textContent = c.urna;
-    linha.partido.textContent = `${c.partido} · ${c.numero}`;
-    linha.pct.textContent = iniciou ? fmt.pct(c.pct) : "—";
-    linha.votos.textContent = iniciou ? `${fmt.inteiro(c.votos)} votos` : "";
-    linha.preench.dataset.cor = String(c.cor);
+    linha.sigla.textContent = c.partido;
+    linha.numero.textContent = c.numero;
+    linha.sigla.dataset.cor = c.cor;
+    definirTexto(linha.pct, iniciou ? fmt.pct(c.pct) : "—");
+    definirTexto(linha.votos, iniciou ? `${fmt.inteiro(c.votos)} votos` : "");
+    linha.preench.dataset.cor = c.cor;
     linha.preench.style.width = iniciou ? `${Math.min(100, Math.max(0, c.pct.n))}%` : "0%";
 
     if (c.eleito) {
@@ -196,7 +191,7 @@ export class Ranking {
         linha = this.criarLinha(c);
         this.linhas.set(c.sq, linha);
       }
-      this.preencher(linha, c, iniciou, r);
+      this.preencher(linha, c, i, iniciou, r);
       desejada.push(linha.el);
       if (usarCorte && i === vagas - 1) {
         this.marcaCorte.textContent = vagas === 1 ? "1 vaga" : `${vagas} vagas`;
@@ -218,13 +213,16 @@ export class Ranking {
 }
 
 // ---- UF no mapa: quem lidera, dica e descrição acessível (compartilhados pelo mapa geográfico e pelo de blocos) ----
+/** Cor de um candidato numa visão que cruza UFs: `porPartido` usa a cor do partido (igual em todas as UFs). */
+export const corDe = (c, porPartido) => (porPartido && c.cor_partido) || c.cor;
+
 /** Candidato à frente na UF, ou null se ainda não há votos liberados. */
 export function liderDaUf(l) {
   return l && l.disponivel && l.top.length ? l.top[0] : null;
 }
 
 /** Dica (tooltip) de uma UF: totalização e os primeiros colocados. */
-export function dicaDeUf(l) {
+export function dicaDeUf(l, porPartido = false) {
   if (!l) return null;
   const corpo = h("div", {}, dica.titulo(l.nome));
   if (!l.disponivel) {
@@ -233,16 +231,27 @@ export function dicaDeUf(l) {
   }
   corpo.append(h("div", { class: "dica-linha", texto: `${fmt.pct(l.secoes.pst)} das seções totalizadas` }));
   if (l.totalizado_em) corpo.append(h("div", { class: "dica-linha", texto: `Última totalização da UF às ${fmt.hora(l.totalizado_em)}` }));
-  for (const c of l.top) corpo.append(dica.linha(c.cor, fmt.pct(c.pct), c.urna, `${fmt.inteiro(c.votos)} votos`));
+  for (const c of l.top) {
+    // nos deputados a linha é um partido ou federação: o que importa é o percentual dos votos válidos e as vagas
+    if (c.bancada) corpo.append(dica.linha(c.cor, fmt.pct(c.pct), c.urna, fmt.vagas(c.vagas)));
+    else corpo.append(dica.linha(corDe(c, porPartido), fmt.pct(c.pct), `${fmt.nome(c.urna)} · ${c.partido}`, `${fmt.inteiro(c.votos)} votos`));
+  }
   if (!l.top.length) corpo.append(h("div", { class: "dica-linha", texto: l.divulga ? "Sem votos apurados" : "Votação ainda não liberada" }));
+  else if (l.top[0].bancada) {
+    corpo.append(h("div", { class: "dica-linha dica-nota", texto: `${fmt.vagas(l.vagas)} em disputa; % dos votos válidos calculado pelo painel` }));
+    if (l.mais_votado) corpo.append(h("div", { class: "dica-linha dica-nota", texto: `Candidato mais votado: ${fmt.nome(l.mais_votado.urna)} (${l.mais_votado.partido}), ${fmt.inteiro(l.mais_votado.votos)} votos` }));
+  }
   return corpo;
 }
 
 /** Texto lido por leitores de tela para uma UF (o nome é passado à parte porque o mapa já o conhece antes dos dados). */
 export function descreverUf(nome, l) {
   const lider = liderDaUf(l);
+  if (lider && lider.bancada) {
+    return `${nome}: ${lider.urna} é o mais votado, com ${fmt.pct(lider.pct)} dos votos válidos e ${fmt.vagas(lider.vagas)} de ${l.vagas}; ${fmt.pct(l.secoes.pst)} das seções totalizadas`;
+  }
   return lider
-    ? `${nome}: ${lider.urna} à frente com ${fmt.pct(lider.pct)}; ${fmt.pct(l.secoes.pst)} das seções totalizadas`
+    ? `${nome}: ${lider.urna} (${lider.partido}) à frente com ${fmt.pct(lider.pct)}; ${fmt.pct(l.secoes.pst)} das seções totalizadas`
     : `${nome}: ${l && l.disponivel && l.secoes.st > 0 ? "sem votos liberados" : "apuração não iniciada"}`;
 }
 
@@ -253,10 +262,12 @@ export const ORDEM_BLOCOS = [
 ];
 
 export class Mapa {
-  constructor() {
+  /** `quem`: como o texto se refere a quem pinta a UF (padrão: "do candidato que lidera"). */
+  constructor({ porPartido = false, quem = "do candidato que lidera" } = {}) {
+    this.porPartido = porPartido;
     this.dados = new Map();
     this.blocos = new Map();
-    this.el = h("div", { class: "mapa", role: "group", "aria-label": "Mapa de blocos das UFs, colorido pelo candidato que lidera" });
+    this.el = h("div", { class: "mapa", role: "group", "aria-label": `Mapa de blocos das UFs, colorido pela cor ${quem}` });
     for (const uf of ORDEM_BLOCOS) {
       const bloco = {};
       bloco.uf = h("b", { texto: uf === "zz" ? "EX" : uf.toUpperCase() });
@@ -266,7 +277,7 @@ export class Mapa {
       bloco.el = uf === "zz"
         ? h("div", { class: `bloco uf-${uf}`, "data-uf": uf, tabindex: "0", role: "img" }, ...filhos)
         : h("a", { class: `bloco uf-${uf}`, "data-uf": uf, href: `/uf/${uf}${window.location.search}` }, ...filhos);
-      dica.vincular(bloco.el, () => dicaDeUf(this.dados.get(uf)));
+      dica.vincular(bloco.el, () => dicaDeUf(this.dados.get(uf), this.porPartido));
       this.blocos.set(uf, bloco);
       this.el.append(bloco.el);
     }
@@ -278,8 +289,9 @@ export class Mapa {
       const b = this.blocos.get(l.codigo);
       if (!b) continue;
       const lider = liderDaUf(l);
+      if (l.cargo && b.el.tagName === "A") b.el.setAttribute("href", `/uf/${l.codigo}${window.location.search}#${l.cargo}`); // abre a aba do cargo
       if (lider) {
-        b.el.dataset.cor = String(lider.cor);
+        b.el.dataset.cor = corDe(lider, this.porPartido);
         delete b.el.dataset.semDados;
         b.valor.textContent = fmt.pct(lider.pct);
       } else {
@@ -290,23 +302,53 @@ export class Mapa {
       b.prog.style.width = l.disponivel && l.secoes.pst ? `${Math.min(100, l.secoes.pst.n)}%` : "0%";
       b.el.setAttribute("aria-label", descreverUf(l.nome, l));
     }
+    // sem dados do exterior (Governador e Senador não têm): o bloco "EX" some
+    const ex = this.blocos.get("zz");
+    if (ex) ex.el.hidden = !this.dados.has("zz");
   }
 }
 
+/** Quantas UFs cada candidato (ou partido, nas disputas em que o candidato muda de UF para UF) lidera. */
 export class Legenda {
-  constructor() {
-    this.el = h("ul", { class: "legenda" });
+  /** `lista`: uma linha por item, com uma barra proporcional à contagem (em vez dos itens lado a lado). */
+  constructor({ porPartido = false, lista = false } = {}) {
+    this.porPartido = porPartido;
+    this.lista = lista;
+    this.el = h("ul", { class: lista ? "legenda legenda--lista" : "legenda", "aria-label": "Legenda do mapa" });
   }
 
-  atualizar(itens) {
-    limpar(this.el);
-    for (const i of itens) {
-      this.el.append(h("li", {}, h("span", { class: "chave", "data-cor": String(i.cor) }), `${i.urna} (${i.numero})`));
+  atualizar(ufs) {
+    const grupos = new Map();
+    let semVotos = 0;
+    for (const l of ufs) {
+      if (l.codigo === "zz") continue; // o exterior não é UF: aparece no mapa, mas não entra na contagem
+      const lider = liderDaUf(l);
+      if (!lider) {
+        semVotos++;
+        continue;
+      }
+      const chave = this.porPartido ? lider.partido : lider.sq;
+      const g = grupos.get(chave) || { cor: corDe(lider, this.porPartido), rotulo: this.porPartido ? lider.partido : fmt.nome(lider.urna), partido: lider.partido, n: 0 };
+      g.n++;
+      grupos.set(chave, g);
     }
-    this.el.append(
-      h("li", {}, h("span", { class: "chave", "data-cor": "0" }), "Outros candidatos"),
-      h("li", {}, h("span", { class: "chave chave-vazia" }), "Sem votos apurados"),
-    );
+    const ordenados = [...grupos.values()].sort((a, b) => b.n - a.n || a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+    const maximo = Math.max(1, ...ordenados.map((g) => g.n), semVotos);
+    const item = (cor, rotulo, n, detalhe) => {
+      const barra = h("i");
+      barra.style.width = `${(100 * n) / maximo}%`;
+      return h("li", {}, h("span", { class: "chave", "data-cor": cor }), h("b", {}, quebravel(rotulo)),
+        this.lista ? h("span", { class: "qtd-barra", "aria-hidden": "true", "data-cor": cor }, barra) : null,
+        h("span", { class: "qtd", texto: `${detalhe}${n} ${n === 1 ? "UF" : "UFs"}` }));
+    };
+    limpar(this.el);
+    for (const g of ordenados) this.el.append(item(g.cor, g.rotulo, g.n, this.porPartido ? "" : `${g.partido} · `));
+    if (semVotos) {
+      const vazio = item("neutro", "Sem votos apurados", semVotos, "");
+      vazio.firstChild.className = "chave chave-vazia";
+      vazio.firstChild.removeAttribute("data-cor");
+      this.el.append(vazio);
+    }
   }
 }
 
@@ -317,25 +359,25 @@ const COLUNAS_ORDENAVEIS = {
   margem: (l) => (l.margem_pp === null || l.margem_pp === undefined ? -1 : l.margem_pp),
 };
 
-function celulaCandidato(c, semCor) {
+export function celulaCandidato(c, comPartido) {
   if (!c) return h("td", {}, h("span", { class: "sem-valor", texto: "—" }));
-  // Em tabelas que cruzam UFs com candidatos diferentes (Governador, Senador) a cor não identifica
-  // ninguém de uma linha para a outra, então não é usada: o nome e o partido é que identificam.
-  const chave = semCor ? null : h("span", { class: "chave", "data-cor": String(c.cor) });
-  const nome = semCor ? `${c.urna} (${c.partido})` : c.urna;
-  return h("td", {}, h("span", { class: "nome-cor" }, chave, nome, " ", h("span", { class: "sub", texto: fmt.pct(c.pct) })));
+  const cor = corDe(c, comPartido);
+  // Nas tabelas que cruzam UFs com candidatos diferentes (Governador, Senador) quem identifica é o partido: a sigla
+  // colorida acompanha o nome. No Presidente os candidatos são os mesmos em toda linha, então basta o quadradinho de cor.
+  const marca = comPartido ? h("span", { class: "sigla", "data-cor": cor, texto: c.partido }) : h("span", { class: "chave", "data-cor": cor });
+  return h("td", {}, h("span", { class: "nome-cor" }, marca, comPartido ? fmt.nome(c.urna) : quebravel(c.urna), " ", h("span", { class: "pct", texto: fmt.pct(c.pct) })));
 }
 
 export class TabelaUfs {
   /**
    * `posicoes`: quantos colocados mostrar por linha (2 = 1º e 2º; 3 = Senador).
    * `vagas`: vagas em disputa por UF (a diferença é medida entre a última vaga e o primeiro fora dela).
-   * `semCor`: não colorir os candidatos (tabelas que cruzam UFs com candidatos diferentes).
+   * `comPartido`: mostra a sigla do partido junto de cada candidato (tabelas que cruzam UFs com candidatos diferentes).
    */
-  constructor({ posicoes = 2, vagas = 1, semCor = false } = {}) {
+  constructor({ posicoes = 2, vagas = 1, comPartido = false } = {}) {
     this.posicoes = posicoes;
     this.vagas = vagas;
-    this.semCor = semCor;
+    this.comPartido = comPartido;
     this.ordem = { chave: "nome", dir: 1 };
     this.linhas = [];
     this.corpo = h("tbody");
@@ -398,11 +440,13 @@ export class TabelaUfs {
       medidor.firstChild.style.width = `${Math.min(100, l.secoes.pst ? l.secoes.pst.n : 0)}%`;
       const celulas = [h("td", {}, nome), h("td", {}, medidor, fmt.pct(l.secoes.pst))];
       for (let i = 0; i < this.posicoes; i++) {
-        const td = celulaCandidato(l.top[i], this.semCor);
+        const td = celulaCandidato(l.top[i], this.comPartido);
         if (i > 0) td.className = "esconde-movel";
         celulas.push(td);
       }
-      celulas.push(h("td", { class: "num", texto: fmt.pontos(l.margem_pp) }));
+      const barra = h("i", { "aria-hidden": "true", "data-cor": l.top[0] ? corDe(l.top[0], this.comPartido) : null });
+      barra.style.width = `${Math.min(36, Math.max(2, (l.margem_pp || 0) * 1.1))}px`;
+      celulas.push(h("td", { class: "num" }, h("span", { class: "margem" }, l.margem_pp === null || l.margem_pp === undefined ? null : barra, fmt.pontos(l.margem_pp))));
       this.corpo.append(h("tr", {}, ...celulas));
     }
   }

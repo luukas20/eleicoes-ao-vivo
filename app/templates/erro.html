@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block conteudo %}
+<header class="cab-local cab-erro">
+  <p class="kicker">Erro {{ codigo }}</p>
+  <h1 class="uf-titulo">{{ titulo }}</h1>
+  <p class="manchete-sub">{{ texto }}</p>
+  <p><a class="btn-texto" href="/">Voltar ao início</a></p>
+</header>
+{% endblock %}

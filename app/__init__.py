@@ -4,7 +4,6 @@ from __future__ import annotations
 from flask import Flask
 
 from .config import Settings
-from .cores import Cores
 from .fotos import FotoCache
 from .historico import Historico
 from .poller import Poller
@@ -36,8 +35,7 @@ def create_app(
     poller = Poller(settings, client, store)
     servico = Servico(
         settings, store, poller=poller,
-        # simulado e oficial nunca se misturam: rodar a demonstração não pode tirar as cores dos candidatos reais
-        cores=Cores(settings.data_dir / "cores" / f"{settings.ambiente}.json"),
+        # simulado e oficial nunca se misturam: rodar a demonstração não pode poluir a curva da apuração real
         historico=Historico(settings.data_dir / "historico" / settings.ambiente),
     )
     app.extensions.update(

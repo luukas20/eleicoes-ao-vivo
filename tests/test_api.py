@@ -1,7 +1,10 @@
 """API JSON, páginas e rota de fotos, com o app alimentado pelo simulador (sem rede)."""
 import pytest
 
+from app import partidos
 from tests.conftest import popular_store
+
+CORES_VALIDAS = set(partidos.todas_as_chaves())  # chaves de cor que o CSS conhece (data-cor)
 
 SQ_PRESIDENTE_0 = "9000010000"  # candidato fictício do simulador (Presidente, 1º da lista)
 
@@ -16,7 +19,10 @@ def test_meta(novo_app):
     app, _, _ = novo_app(0.5)
     m = json_de(app.test_client().get("/api/v1/meta"))
     assert m["fase"] == "s" and m["data"] == "2026-10-04" and m["turnos"] == [1] and m["turno_padrao"] == 1
-    assert [c["slug"] for c in m["cargos"]] == ["presidente", "governador", "senador"]
+    assert [c["slug"] for c in m["cargos"]] == [
+        "presidente", "governador", "senador", "deputado-federal", "deputado-estadual", "deputado-distrital",
+    ]
+    assert [c["tipo"] for c in m["cargos"]] == ["majoritario"] * 3 + ["proporcional"] * 3
     assert len(m["ufs"]) == 27 and m["frescor"]["desatualizado"] is False and m["frescor"]["defasagem_s"] < 5
 
 
@@ -38,7 +44,7 @@ def test_presidente_antes_da_apuracao(novo_app):
     d = json_de(app.test_client().get("/api/v1/presidente"))
     r = d["resultado"]
     assert d["disponivel"] and r["estado"]["andamento"] == "n" and r["secoes"]["st"] == 0
-    assert len(r["candidatos"]) == 6 and all(c["votos"] == 0 and c["cor"] == 0 for c in r["candidatos"])
+    assert len(r["candidatos"]) == 6 and all(c["votos"] == 0 and c["cor"] in CORES_VALIDAS for c in r["candidatos"])
     assert d["legenda"] == [] and len(d["ufs"]) == 28
     assert all(u["disponivel"] and u["top"] == [] and u["margem_pp"] is None for u in d["ufs"])
 
@@ -48,9 +54,10 @@ def test_presidente_no_meio_da_apuracao(novo_app):
     d = json_de(app.test_client().get("/api/v1/presidente"))
     r = d["resultado"]
     assert r["estado"]["andamento"] == "p" and 0 < r["secoes"]["st"] < r["secoes"]["ts"]
-    assert [c["cor"] for c in d["legenda"]] == [1, 2, 3]  # três primeiros colocados ganham as cores 1..3
-    lideres = [c for c in r["candidatos"] if c["cor"] > 0]
-    assert len(lideres) == 3 and r["candidatos"][0]["cor"] == 1  # ordenado por votos; 1º recebeu o slot 1
+    com_votos = [c for c in r["candidatos"] if c["votos"] > 0]
+    assert [c["sq"] for c in d["legenda"]] == [c["sq"] for c in com_votos]  # a legenda segue o ranking de quem já tem votos
+    assert [c["cor"] for c in d["legenda"]] == [c["cor"] for c in com_votos] and set(c["cor"] for c in d["legenda"]) <= CORES_VALIDAS
+    assert len({c["cor"] for c in r["candidatos"]}) == len(r["candidatos"])  # cada candidato da disputa tem uma cor própria
     assert all(c["foto"] == f"/foto/6257/br/{c['sq']}" for c in r["candidatos"])
     assert "obtido_em" not in str(d)  # nada volátil no corpo: o ETag precisa ficar estável
     sp = next(u for u in d["ufs"] if u["codigo"] == "sp")
@@ -58,18 +65,29 @@ def test_presidente_no_meio_da_apuracao(novo_app):
     assert d["ufs_andamento"]["ufsnr"] + d["ufs_andamento"]["ufspt"] + d["ufs_andamento"]["ufsf"] == 28
 
 
-def test_a_cor_segue_o_candidato_e_nao_a_posicao(novo_app):
+def test_a_cor_segue_o_partido_e_nao_a_posicao(novo_app):
     app, store, _ = novo_app(0.3)
     c = app.test_client()
-    antes = {x["sq"]: x["cor"] for x in json_de(c.get("/api/v1/presidente"))["resultado"]["candidatos"] if x["cor"]}
-    assert len(antes) == 3
-    popular_store(store, 1.0)  # fim da apuração: o ranking pode mudar, as cores já atribuídas não
-    depois = {x["sq"]: x["cor"] for x in json_de(c.get("/api/v1/presidente"))["resultado"]["candidatos"] if x["cor"]}
-    assert all(depois[sq] == cor for sq, cor in antes.items())
+    antes = {x["sq"]: x["cor"] for x in json_de(c.get("/api/v1/presidente"))["resultado"]["candidatos"]}
+    popular_store(store, 1.0)  # fim da apuração: o ranking pode mudar, as cores não
+    depois = {x["sq"]: x["cor"] for x in json_de(c.get("/api/v1/presidente"))["resultado"]["candidatos"]}
+    assert antes == depois and set(antes.values()) <= CORES_VALIDAS
 
 
-def test_cores_e_historico_de_ambientes_diferentes_nao_se_misturam(tmp_path):
-    """Rodar a demonstração (simulado) não pode consumir as primeiras cores nem poluir a curva do oficial."""
+def test_as_cores_existem_desde_antes_da_apuracao_e_batem_entre_ranking_mapa_e_legenda(novo_app):
+    app, store, _ = novo_app(0.0)
+    c = app.test_client()
+    cedo = {x["sq"]: x["cor"] for x in json_de(c.get("/api/v1/presidente"))["resultado"]["candidatos"]}
+    assert len(cedo) == 6 and set(cedo.values()) <= CORES_VALIDAS and "neutro" not in cedo.values()  # nada de "sem cor"
+    popular_store(store, 0.5)
+    d = json_de(c.get("/api/v1/presidente"))
+    assert {x["sq"]: x["cor"] for x in d["resultado"]["candidatos"]} == cedo
+    assert all(cedo[x["sq"]] == x["cor"] for x in d["legenda"])
+    assert all(cedo[t["sq"]] == t["cor"] for u in d["ufs"] for t in u["top"])  # o mapa pinta com a mesma cor do ranking
+
+
+def test_ambientes_diferentes_nao_misturam_o_historico(tmp_path):
+    """Rodar a demonstração (simulado) não pode poluir a curva da apuração real."""
     from app import create_app
     from app.config import Settings
     from app.store import Store
@@ -84,17 +102,31 @@ def test_cores_e_historico_de_ambientes_diferentes_nao_se_misturam(tmp_path):
         return app
 
     subir("simulado")
-    assert (tmp_path / "cores" / "simulado.json").exists() and not (tmp_path / "cores" / "oficial.json").exists()
     assert (tmp_path / "historico" / "simulado").is_dir() and not (tmp_path / "historico" / "oficial").exists()
-    oficial = subir("oficial")  # o oficial começa do zero: os candidatos reais pegam as cores 1, 2 e 3
-    cores = [c["cor"] for c in oficial.test_client().get("/api/v1/presidente").get_json()["resultado"]["candidatos"] if c["cor"]]
-    assert sorted(cores) == [1, 2, 3]
+    assert not (tmp_path / "cores").exists()  # as cores vêm do partido: nada é gravado em disco
 
 
-def test_cores_nao_sao_atribuidas_no_comecinho_da_apuracao(novo_app):
-    app, _, _ = novo_app(0.01)  # menos de 1% das seções totalizadas: ranking ainda instável
-    r = json_de(app.test_client().get("/api/v1/presidente"))["resultado"]
-    assert all(c["cor"] == 0 for c in r["candidatos"])
+def test_cada_uf_traz_tambem_a_cor_do_partido_para_as_visoes_que_cruzam_ufs(novo_app):
+    """No mapa e nas tabelas de Governador/Senador o mesmo partido tem a mesma cor em todas as UFs (`cor_partido`)."""
+    app, _, _ = novo_app(0.5)
+    d = json_de(app.test_client().get("/api/v1/cargo/governador"))
+    tops = [t for linha in d["linhas"] for t in linha["top"]]
+    assert tops and all(t["cor_partido"] in CORES_VALIDAS for t in tops)
+    por_partido: dict[str, set[str]] = {}
+    for t in tops:
+        por_partido.setdefault(t["partido"], set()).add(t["cor_partido"])
+    assert all(len(cores) == 1 for cores in por_partido.values())  # um partido, uma cor
+
+
+def test_pagina_inexistente_tem_a_cara_do_painel_e_a_api_continua_enxuta(novo_app):
+    app, _, _ = novo_app(0.5)
+    c = app.test_client()
+    r = c.get("/pagina-que-nao-existe", headers={"Accept": "text/html"})
+    assert r.status_code == 404 and "Página não encontrada" in r.get_data(as_text=True) and "Voltar ao início" in r.get_data(as_text=True)
+    assert c.get("/uf/xx", headers={"Accept": "text/html"}).status_code == 404
+    api = c.get("/api/v1/nao-existe")
+    assert api.status_code == 404 and "<html" not in api.get_data(as_text=True).lower()
+    assert c.get("/foto/1/br/abc").status_code == 404 and "text/html" not in c.get("/foto/1/br/abc").content_type
 
 
 def test_etag_estavel_entre_consultas_e_304(novo_app):
@@ -234,7 +266,7 @@ def test_pagina_do_municipio_pede_o_acompanhamento_e_so_aceita_codigos_do_ea12(n
     assert all(x["disponivel"] for x in d["disputas"])
     pres = d["disputas"][0]["resultado"]
     assert pres["abrangencia"] == {"tipo": "mu", "codigo": codigo, "nome": "SÃO PAULO - MUNICIPIO SIMULADO 2"}
-    assert [x["cor"] for x in pres["candidatos"] if x["cor"]] and all(x["foto"].startswith("/foto/6257/br/") for x in pres["candidatos"])
+    assert all(x["cor"] in CORES_VALIDAS and x["foto"].startswith("/foto/6257/br/") for x in pres["candidatos"])
     assert d["disputas"][1]["resultado"]["candidatos"][0]["foto"].startswith("/foto/6259/sp/")
 
 
@@ -302,9 +334,11 @@ def test_cabecalhos_de_seguranca(novo_app):
 def test_status_da_api(novo_app):
     app, _, _ = novo_app(0.5)
     d = json_de(app.test_client().get("/api/v1/status"))
-    assert d["armazenamento"]["arquivos"] == 88 and d["poller"]["rodando"] is False
+    assert d["armazenamento"]["arquivos"] == 142 and d["poller"]["rodando"] is False
     assert d["poller"]["cliente"]["disjuntor"]["aberto"] is False
-    assert {e["cargo"] for e in d["eleicoes"]} == {"presidente", "governador", "senador"}
+    assert {e["cargo"] for e in d["eleicoes"]} == {
+        "presidente", "governador", "senador", "deputado-federal", "deputado-estadual", "deputado-distrital",
+    }
 
 
 # ---- páginas e estáticos ------------------------------------------------------------------------------
