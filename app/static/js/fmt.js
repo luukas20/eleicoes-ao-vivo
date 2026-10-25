@@ -35,6 +35,12 @@ export function horaMinuto(instante) {
   return new Date(instante).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: FUSO });
 }
 
+// instante ISO -> "25/10 14:50" (horário de Brasília)
+export function dataHora(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: FUSO }).replace(",", "");
+}
+
 export function dataLonga(isoData) {
   if (!isoData) return "";
   return new Date(`${isoData}T12:00:00-03:00`).toLocaleDateString("pt-BR", {

@@ -17,6 +17,25 @@ function cartao(titulo, ...filhos) {
   return h("section", { class: "cartao" }, h("h2", { texto: titulo }), ...filhos);
 }
 
+const pico = (p) => (p.n ? `${fmt.inteiro(p.n)} (${fmt.dataHora(p.em)})` : "—");
+
+/** Quadro de acessos: pelo link público e total, com os picos. Os números vêm do próprio painel (sem guardar IP). */
+function quadroAcessos(a) {
+  const linha = (rotulo, f) => [rotulo, f(a.link), f(a.todos)];
+  return cartao("Acessos ao painel",
+    h("p", { class: "sub", texto: `Contando desde ${fmt.dataHora(a.desde)}. "Todos" inclui também este computador e a rede local. "Pessoas online" são aparelhos que consultaram o painel nos últimos ${a.janela_online_s} s (aproximado; o painel não guarda IP).` }),
+    tabela(["Medida", "Pelo link público", "Todos"], [
+      linha("Páginas abertas (visitas)", (e) => fmt.inteiro(e.paginas)),
+      linha("Pessoas online agora", (e) => fmt.inteiro(e.online)),
+      linha("Pico de pessoas online", (e) => pico(e.pico_online)),
+      linha("Requisições (total)", (e) => fmt.inteiro(e.requisicoes)),
+      linha("Requisições por minuto (agora)", (e) => fmt.inteiro(e.req_por_min)),
+      linha("Pico de requisições por minuto", (e) => pico(e.pico_req_por_min)),
+      linha("Requisições em andamento (agora)", (e) => fmt.inteiro(e.em_andamento)),
+      linha("Pico de requisições em andamento", (e) => pico(e.pico_em_andamento)),
+    ]));
+}
+
 function pintar(d) {
   const f = d.frescor;
   const c = d.poller.cliente;
@@ -24,6 +43,7 @@ function pintar(d) {
     cartao("Conexão com o TSE",
       h("p", { texto: f.aguardando_primeiro_contato ? "Aguardando o primeiro contato." : `Última confirmação há ${fmt.idade(f.defasagem_s)}${f.desatualizado ? " — desatualizado" : ""}.` }),
       h("p", { class: "sub", texto: f.disjuntor.aberto ? `Disjuntor ABERTO (${f.disjuntor.motivo}); volta em ${fmt.idade(f.disjuntor.restante_s)}.` : "Disjuntor fechado: consultas liberadas." })),
+    quadroAcessos(d.acessos),
     cartao("Requisições ao TSE",
       tabela(["Total", "Por segundo (10 s)", "Limite global", "Dados recebidos", "Por status", "Último erro"], [[
         fmt.inteiro(c.total), c.req_por_s, `${c.limite_req_por_s}/s`, `${(c.bytes_recebidos / 1e6).toFixed(1)} MB`,

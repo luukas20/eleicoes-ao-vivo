@@ -180,6 +180,7 @@ def status():
             "frescor": s.frescor(),
             "poller": poller.estado(),
             "armazenamento": {"arquivos": len(s.store.itens()), "versao": s.store.versao},
+            "acessos": current_app.extensions["acessos"].snapshot(),
             "eleicoes": [
                 {"ele": d.ele, "turno": d.turno, "cargo": d.cargo.slug, "ufs": len(d.ufs), "ciclo": d.ciclo}
                 for d in s.disputas()

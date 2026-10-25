@@ -542,6 +542,7 @@ def test_acessibilidade_sem_violacoes_do_axe(navegador, stack, esquema, progress
             (f"/governadores?{INTERVALO}", ".tabela tbody tr"),
             (f"/senadores?{INTERVALO}", ".tabela tbody tr"),
             (f"/municipio/sp/{Simulacao.codigo_municipio('sp', 0):05d}?{INTERVALO}", ".cand"),
+            (f"/status?{INTERVALO}", "#conteudo-status .tabela tbody tr"),
             (f"/deputados-federais?{INTERVALO}", "#slot-tabela tbody tr"),
             (f"/deputados-estaduais?{INTERVALO}", "#slot-tabela tbody tr"),
             (f"/uf/sp?{INTERVALO}#deputado-federal", "#painel-deputado-federal .tabela--bancadas tbody tr"),
@@ -1184,4 +1185,25 @@ def test_as_tabelas_dos_deputados_cabem_no_celular_mesmo_com_as_siglas_mais_long
     for nome, (tabela, cartao) in page.evaluate(PIOR_CASO_DAS_TABELAS).items():
         assert tabela <= cartao + 1, f"tabela {nome}: {tabela}px num cartão de {cartao}px ({largura}px de tela)"
     assert page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth") <= 0
+    assert erros == []
+
+
+def test_diagnostico_mostra_os_acessos_ao_painel(abrir):
+    visitante, _ = abrir("/")
+    esperar(visitante, "document.querySelectorAll('.cand').length === 6")  # uma visita, e a página segue consultando
+    page, erros = abrir("/status")
+    esperar(page, "[...document.querySelectorAll('h2')].some(h => h.textContent === 'Acessos ao painel')")
+    quadro = page.locator("section.cartao", has=page.get_by_role("heading", name="Acessos ao painel"))
+    assert "não guarda IP" in quadro.inner_text()
+    assert [c.inner_text().lower() for c in quadro.locator("th").all()] == ["medida", "pelo link público", "todos"]
+    linhas = {l.locator("td").nth(0).inner_text(): [l.locator("td").nth(1).inner_text(), l.locator("td").nth(2).inner_text()] for l in quadro.locator("tbody tr").all()}
+    assert list(linhas) == [
+        "Páginas abertas (visitas)", "Pessoas online agora", "Pico de pessoas online", "Requisições (total)",
+        "Requisições por minuto (agora)", "Pico de requisições por minuto", "Requisições em andamento (agora)", "Pico de requisições em andamento",
+    ]
+    inteiro = lambda texto: int(re.sub(r"\D", "", texto.split(" ")[0]) or 0)  # noqa: E731
+    assert inteiro(linhas["Páginas abertas (visitas)"][1]) >= 1 and inteiro(linhas["Pessoas online agora"][1]) >= 1
+    assert inteiro(linhas["Pessoas online agora"][1]) <= inteiro(linhas["Pico de pessoas online"][1])  # o pico nunca fica abaixo do agora
+    assert linhas["Páginas abertas (visitas)"][0] == "0"  # o Chrome do teste não vem pelo túnel: nada no link público
+    assert re.search(r"\(\d{2}/\d{2} \d{2}:\d{2}\)", linhas["Pico de pessoas online"][1])  # pico com data e hora de Brasília
     assert erros == []

@@ -1,8 +1,9 @@
 """Eleições ao Vivo — painel não oficial da apuração (dados públicos do TSE)."""
 from __future__ import annotations
 
-from flask import Flask
+from flask import Flask, g, request
 
+from .acessos import Acessos, ignorar
 from .config import Settings
 from .fotos import FotoCache
 from .historico import Historico
@@ -38,8 +39,9 @@ def create_app(
         # simulado e oficial nunca se misturam: rodar a demonstração não pode poluir a curva da apuração real
         historico=Historico(settings.data_dir / "historico" / settings.ambiente),
     )
+    acessos = Acessos(settings.data_dir / "acessos" / f"{settings.ambiente}.json")
     app.extensions.update(
-        settings=settings, store=store, poller=poller, servico=servico,
+        settings=settings, store=store, poller=poller, servico=servico, acessos=acessos,
         fotos=FotoCache(settings.data_dir / "fotos", client),
     )
 
@@ -48,8 +50,28 @@ def create_app(
     app.register_blueprint(api.bp)
     app.register_blueprint(views.bp)
 
+    # contagem de acessos (página de Diagnóstico); o túnel da Cloudflare marca o visitante em CF-Connecting-IP
+    @app.before_request
+    def acesso_abrir():
+        g.acesso = None
+        if ignorar(request.path):
+            return
+        via_link = "CF-Connecting-IP" in request.headers
+        cliente = (request.headers.get("CF-Connecting-IP") or request.remote_addr or "") + "|" + request.headers.get("User-Agent", "")
+        acessos.abrir(request.path, via_link, cliente)
+        g.acesso = via_link
+
+    @app.teardown_request
+    def acesso_fechar(_erro):
+        via_link = g.get("acesso")
+        if via_link is not None:
+            acessos.fechar(via_link)
+
     @app.after_request
     def cabecalhos_de_seguranca(resposta):
+        via_link = g.get("acesso")
+        if via_link is not None and resposta.status_code == 200 and resposta.mimetype == "text/html":
+            acessos.pagina(via_link)  # uma visita = uma página aberta (a 404 e os dados não contam)
         resposta.headers.setdefault("Content-Security-Policy", CSP)
         resposta.headers.setdefault("X-Content-Type-Options", "nosniff")
         resposta.headers.setdefault("Referrer-Policy", "no-referrer")
