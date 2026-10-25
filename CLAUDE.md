@@ -7,18 +7,18 @@ O [README.md](README.md) é a versão curta e pública; este arquivo é o guia c
 
 Estado em 25/10/2026: 1º turno (04/10) encerrado; 2º turno em 25/10. O portal foi **aprovado pelo usuário** (identidade
 visual, Presidente, Governador, Senador, três cargos de deputado, municípios, gráfico, tema escuro, celular). Último commit
-relevante: `06f2a9e` na `main`, **sem push e sem tag** até o usuário pedir (a tag prevista é `v0.4.0`).
+relevante: publicado na `main` do GitHub; a tag prevista é `v0.4.0` e ainda não foi criada.
 
 ---
 
 ## 1. Regras de ouro (leia antes de agir)
 
-1. **Não altere o portal sem pedido explícito.** O usuário disse "não mexa em nada no portal, ele está perfeito".
+1. **Não altere o portal sem pedido explícito.** O dono do projeto considera o portal pronto e pediu para não mexer nele.
    Pedidos de avaliação, estimativa ou teste são **só leitura**: leia o código e meça numa cópia descartável fora do
    projeto (`PYTHONDONTWRITEBYTECODE=1`, dados na pasta temporária da sessão, escutando só em `127.0.0.1`), confira que
    `git status` está limpo no fim e desligue tudo o que ligou. Melhorias entram como texto de recomendação.
-2. **Nunca exponha o notebook à internet sem pedido explícito** (túnel Cloudflare, abrir porta no roteador,
-   `HOST=0.0.0.0` etc.). O usuário já pediu para desligar tudo "para evitar riscos de segurança ao meu notebook". O
+2. **Nunca exponha o computador que roda o painel à internet sem pedido explícito** (túnel Cloudflare, abrir porta no roteador,
+   `HOST=0.0.0.0` etc.). O dono do projeto prefere não deixar o computador exposto sem necessidade. O
    classificador de permissões do Claude Code **bloqueia túneis públicos**; não tente contornar. Se for necessário,
    explique e deixe o usuário liberar a regra de permissão ou rodar o comando por conta própria (seção 2.7).
 3. **Seja educado com o TSE.** O limite deles é 100 requisições/s por IP, o bloqueio dura 10 minutos e **se renova a
@@ -66,13 +66,13 @@ python -m venv .venv
    `Get-ChildItem Env:TSE_*` não deve listar nada.
 
    **Atenção ao tipo de terminal.** Os comandos deste manual são do **PowerShell** (o prompt começa com `PS C:\...>`).
-   Se o seu prompt for só `C:\Users\lucas>` você está no **Prompt de Comando (cmd)**: digite `powershell` e Enter para
+   Se o seu prompt for só `C:\Users\seu-usuario>` você está no **Prompt de Comando (cmd)**: digite `powershell` e Enter para
    trocar, ou use as versões para cmd indicadas em cada passo (o `&` que aparece nos comandos do PowerShell **não existe**
    no cmd e dá "& foi inesperado neste momento"). No cmd, para conferir variáveis antigas: `set TSE_` (não deve listar nada).
-2. **Rode o painel** (PowerShell; no cmd troque a primeira linha por `cd /d "C:\Users\lucas\Documents\Projetos Python\Eleições"`):
+2. **Rode o painel** (PowerShell; no cmd troque a primeira linha por `cd /d "<pasta do projeto>"`; nos dois, troque `<pasta do projeto>` pelo caminho da pasta onde o projeto está):
 
 ```powershell
-cd "C:\Users\lucas\Documents\Projetos Python\Eleições"
+cd "<pasta do projeto>"
 .venv\Scripts\python.exe run.py
 ```
 
@@ -146,7 +146,7 @@ simulada; no ambiente real ela não deve aparecer nunca.
 ### 2.5 Ver no celular
 
 - **Mesma rede Wi-Fi:** reinicie o painel com `HOST=0.0.0.0` (`$env:HOST="0.0.0.0"` no terminal), descubra o IP do
-  notebook com `ipconfig` (ex.: `192.168.3.7`) e abra `http://<IP>:8000` no celular. O Windows pode pedir permissão no
+  notebook com `ipconfig` (ex.: `192.168.x.x`) e abra `http://<IP>:8000` no celular. O Windows pode pedir permissão no
   firewall (já existe regra para o Python em redes "Públicas"). O celular não pode estar nos dados móveis, em rede de
   convidados nem com VPN; alguns roteadores isolam os aparelhos entre si. Enquanto estiver assim, qualquer pessoa na
   mesma rede abre o painel. Volte para `127.0.0.1` ao terminar.
@@ -155,7 +155,7 @@ simulada; no ambiente real ela não deve aparecer nunca.
 
 ### 2.6 Noite da apuração (checklist)
 
-1. **Antes:** notebook na tomada, sem suspensão (ligado na tomada o plano "Equilibrado" não suspende; confira o que
+1. **Antes:** notebook na tomada, sem suspensão (ligado na tomada o Windows costuma não suspender; confira o plano de energia e o que
    fechar a tampa faz), de preferência no cabo de rede, sem atualização do Windows agendada. Terminal novo.
 2. Subir o painel (2.2) **antes** de a apuração começar: o histórico do gráfico só existe porque o painel registra cada
    totalização; quem liga depois perde o começo da curva.
@@ -177,7 +177,7 @@ PowerShell abertas ao mesmo tempo**: uma com o painel, outra com o túnel. Não 
 & "$env:LOCALAPPDATA\cloudflared\cloudflared.exe" tunnel --url http://127.0.0.1:8000 --no-autoupdate
 ```
 
-   No **Prompt de Comando (cmd)** (prompt `C:\Users\lucas>`), sem o `&` e com `%...%` no lugar de `$env:...`:
+   No **Prompt de Comando (cmd)** (prompt `C:\Users\seu-usuario>`), sem o `&` e com `%...%` no lugar de `$env:...`:
 
 ```
 "%LOCALAPPDATA%\cloudflared\cloudflared.exe" tunnel --url http://127.0.0.1:8000 --no-autoupdate
@@ -488,7 +488,7 @@ $env:TSE_BASE="http://127.0.0.1:5001"; $env:TSE_AMBIENTE="simulado"; $env:ESCALA
 - **Convenções:** nomes e comentários em português; comentários só onde o porquê não é óbvio; sem `innerHTML` com dados;
   CSS por tokens (não coloque cor "solta"); novos textos na interface em português correto, com acentos.
 
-### 6.4 Escala (medido em 03/10/2026, notebook Ryzen 5 5500U, 5,8 GB de RAM)
+### 6.4 Escala (medido em 03/10/2026 em um notebook comum: 6 núcleos e cerca de 6 GB de RAM)
 
 - Cada requisição custa de 0,3 a 2 ms; o servidor sustenta ~400–550 req/s (~380 numa mistura realista) e ~60 visitantes
   novos por segundo. Cada pessoa com a página aberta gera ~0,15–0,2 req/s: **~1.000–1.500 pessoas simultâneas com
@@ -509,9 +509,9 @@ $env:TSE_BASE="http://127.0.0.1:5001"; $env:TSE_AMBIENTE="simulado"; $env:ESCALA
 
 - Modo telão (tela cheia para projetor).
 - EA10 (resultado de eleitos) e verificação das assinaturas `.jws`.
-- CI no GitHub Actions; hospedagem fixa na internet (hoje roda no notebook).
+- CI no GitHub Actions; hospedagem fixa na internet (hoje roda em um computador local).
 - Conselheiro Distrital de Fernando de Noronha (eleição 6261): ignorado de propósito.
-- Push do commit `06f2a9e` e tag `v0.4.0`, quando o usuário pedir.
+- Tag `v0.4.0`, quando o dono do projeto pedir.
 - O formato dos arquivos de deputados com votos foi inferido de um arquivo real da pré-eleição e da documentação do TSE;
   o histórico de 04/10 (~4 MB) mostra que o painel registrou a apuração, mas não foi revisado como as páginas de deputados
   se comportaram com votos reais. Acompanhar `/status` e as páginas em cada eleição.
