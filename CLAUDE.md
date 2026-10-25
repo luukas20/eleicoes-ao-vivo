@@ -58,17 +58,42 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements-dev.txt        # + testes (pytest, Playwright, axe)
 ```
 
-### 2.2 Subir o painel real
+### 2.2 Subir o painel real (passo a passo)
+
+1. **Abra um terminal PowerShell novo, na pasta do projeto.** No VS Code: menu *Terminal > Novo Terminal* (já abre na
+   pasta). Ou, no Explorador de Arquivos, abra a pasta do projeto, clique na barra de endereço, digite `powershell` e
+   Enter. Terminal **novo** porque um terminal antigo pode ter variáveis do simulador (seção 1, item 8). Para conferir:
+   `Get-ChildItem Env:TSE_*` não deve listar nada.
+
+   **Atenção ao tipo de terminal.** Os comandos deste manual são do **PowerShell** (o prompt começa com `PS C:\...>`).
+   Se o seu prompt for só `C:\Users\lucas>` você está no **Prompt de Comando (cmd)**: digite `powershell` e Enter para
+   trocar, ou use as versões para cmd indicadas em cada passo (o `&` que aparece nos comandos do PowerShell **não existe**
+   no cmd e dá "& foi inesperado neste momento"). No cmd, para conferir variáveis antigas: `set TSE_` (não deve listar nada).
+2. **Rode o painel** (PowerShell; no cmd troque a primeira linha por `cd /d "C:\Users\lucas\Documents\Projetos Python\Eleições"`):
 
 ```powershell
 cd "C:\Users\lucas\Documents\Projetos Python\Eleições"
 .venv\Scripts\python.exe run.py
 ```
 
-Abra <http://127.0.0.1:8000>. O painel consulta sozinho o feed oficial (`https://resultados.tse.jus.br/oficial`) e
-descobre as eleições pelo arquivo de configuração do TSE; o segundo turno entra sozinho. Para deixar rodando sem
-janela: `Start-Process -WindowStyle Hidden` com `.venv\Scripts\python.exe run.py` (guarde a saída em arquivo, porque
-sem janela o erro some). Fechar o terminal derruba o painel.
+3. **O que deve aparecer** em poucos segundos (a janela fica "ocupada": é o painel rodando):
+
+```
+Painel em http://127.0.0.1:8000  | fonte: https://resultados.tse.jus.br/oficial
+... INFO waitress: Serving on http://127.0.0.1:8000
+... INFO poller: configuração do TSE (idg ...): 181 alvos
+```
+
+4. **Confirme no navegador:** <http://127.0.0.1:8000> mostra o chip "Ao vivo · atualizado há N s" e **não** mostra a faixa
+   amarela "DADOS SIMULADOS". Em <http://127.0.0.1:8000/status>, "arquivos carregados" chega ao total de alvos em
+   cerca de 30 segundos e "Alvos com problema" fica em 0.
+5. **Deixe a janela aberta.** Ela é o painel: fechar a janela (ou `Ctrl+C` nela) desliga o painel. Os eventos
+   (mudança de configuração, erros) aparecem nela e também ficam em `data\logs\painel.log`.
+
+O painel consulta sozinho o feed oficial (`https://resultados.tse.jus.br/oficial`) e descobre as eleições pelo arquivo de
+configuração do TSE; o segundo turno entra sozinho. Para rodar **sem janela** (como o Claude faz): `Start-Process
+-WindowStyle Hidden` com `.venv\Scripts\python.exe run.py`, guardando a saída em arquivos (sem janela o erro some); nesse
+caso o processo aparece só no Gerenciador de Tarefas (aba Detalhes: `python.exe`) e se para com os comandos da seção 2.8.
 
 **Configuração:** só por **variáveis de ambiente** (o arquivo `.env` existe como modelo, mas o painel **não o lê**).
 
@@ -96,7 +121,7 @@ sem janela o erro some). Fechar o terminal derruba o painel.
 | `/deputados-federais`, `/deputados-estaduais` | Hemiciclo, bancadas somadas, mapa pelo partido ou federação mais votado, tabela por UF (o estadual inclui o Distrital do DF) |
 | `/uf/<uf>` | Abas: Presidente, Governador, Senador e os deputados da UF (no DF, Distrital no lugar do Estadual); busca de municípios |
 | `/municipio/<uf>/<código>` | Presidente, Governador e Senador no município (consultado sob demanda) |
-| `/status` | Diagnóstico: consultas ao TSE, camadas, arquivos com problema, disjuntor |
+| `/status` | Diagnóstico: consultas ao TSE, camadas, arquivos com problema, disjuntor e **acessos ao painel** (seção 3.9) |
 | `/healthz` | `{"ok": true}` para verificar se o painel está de pé |
 
 Parâmetros de URL: `?turno=1|2` (turno exibido) e `?intervalo=<ms>` (intervalo de consulta do navegador, de 2000 a
@@ -140,18 +165,66 @@ simulada; no ambiente real ela não deve aparecer nunca.
 4. Durante: abrir de vez em quando. Se o "atualizado há" passar de ~2 minutos, veja a seção 2.9.
 5. Depois: o histórico fica em `data/historico/oficial/` (pode ser guardado); desligar tudo (2.8).
 
-### 2.7 Túnel para acesso de qualquer rede (só com autorização do usuário)
+### 2.7 Colocar no ar com link público (túnel), passo a passo — só com autorização do usuário
 
-- Ferramenta: `cloudflared` em `%LOCALAPPDATA%\cloudflared\cloudflared.exe` (versão 2026.9.3, conferida pelo SHA-256 da
-  release e pela assinatura "Cloudflare, Inc."; baixar sempre do GitHub oficial `cloudflare/cloudflared`).
-- Comando (painel precisa estar de pé em `127.0.0.1:8000`):
-  `& "$env:LOCALAPPDATA\cloudflared\cloudflared.exe" tunnel --url http://127.0.0.1:8000 --no-autoupdate`.
-  O endereço `https://<palavras>.trycloudflare.com` aparece no terminal. Não precisa abrir porta nem mudar o roteador.
-- Limites e riscos: o link é **público e sem login**, muda a cada reinício do túnel (reiniciar só o painel mantém o
-  link), o túnel rápido é "só para testes" segundo a Cloudflare (até 200 requisições simultâneas, sem garantia de
-  disponibilidade, e alguns filtros desconfiam do domínio), e o painel inteiro fica à mercê do notebook (energia,
-  Wi-Fi, Windows Update). A página `/status` também fica pública. Se cair, o link responde 502.
-- Mantenha o painel em `127.0.0.1` (o túnel conecta localmente); não use `HOST=0.0.0.0` junto com o túnel.
+Para o celular nos dados móveis (ou qualquer pessoa na internet) abrir o painel que roda no notebook. São **duas janelas do
+PowerShell abertas ao mesmo tempo**: uma com o painel, outra com o túnel. Não precisa abrir porta nem mexer no roteador.
+
+1. **Janela 1, o painel:** siga a seção 2.2 até o passo 4 (painel respondendo em <http://127.0.0.1:8000>).
+2. **Janela 2, o túnel:** abra *outro* terminal PowerShell (pode ser em qualquer pasta) e rode:
+
+```powershell
+& "$env:LOCALAPPDATA\cloudflared\cloudflared.exe" tunnel --url http://127.0.0.1:8000 --no-autoupdate
+```
+
+   No **Prompt de Comando (cmd)** (prompt `C:\Users\lucas>`), sem o `&` e com `%...%` no lugar de `$env:...`:
+
+```
+"%LOCALAPPDATA%\cloudflared\cloudflared.exe" tunnel --url http://127.0.0.1:8000 --no-autoupdate
+```
+
+3. **Copie o link.** Em 5 a 10 segundos aparece uma caixa como esta; o endereço `https://...trycloudflare.com` é o link
+   público (as palavras mudam a cada vez):
+
+```
+Your quick Tunnel has been created! Visit it at (it may take some time to be reachable):
+https://exemplo-de-palavras-aleatorias.trycloudflare.com
+```
+
+   Linhas seguintes com `Registered tunnel connection` mostram que o túnel conectou. A janela fica "ocupada": deixe-a aberta.
+4. **Teste:** abra o link no navegador do computador e depois no celular **com o Wi-Fi desligado** (assim o teste usa os
+   dados móveis). A página deve abrir igual à do endereço local, com "Ao vivo".
+5. **Compartilhe** o link. Quem acessa aparece em `/status`, no quadro "Acessos ao painel", coluna "Pelo link público".
+
+**Regras que explicam o comportamento do link**
+
+- **Ordem:** o painel primeiro, o túnel depois. O painel pode ser reiniciado (`Ctrl+C` e rodar de novo na janela 1) **sem
+  mudar o link**; o túnel só precisa que o painel esteja de pé em `127.0.0.1:8000` quando alguém abrir.
+- **O link vive enquanto a janela 2 estiver aberta e o computador ligado.** Fechou a janela, parou o processo ou reiniciou
+  o PC: o link morre e o túnel novo gera **outro**. Com o túnel rápido não há como escolher nem recuperar o endereço. Para
+  um endereço fixo é preciso um túnel nomeado com domínio próprio (Cloudflare), ou Tailscale Funnel, ou ngrok.
+- **Mantenha o painel em `127.0.0.1`** (padrão). Não use `HOST=0.0.0.0` junto com o túnel.
+
+**Se o `cloudflared.exe` não existir** em `%LOCALAPPDATA%\cloudflared\`: baixe `cloudflared-windows-amd64.exe` da página oficial
+<https://github.com/cloudflare/cloudflared/releases/latest>, salve como `cloudflared.exe` nessa pasta e confira:
+`(Get-FileHash $env:LOCALAPPDATA\cloudflared\cloudflared.exe -Algorithm SHA256).Hash` deve bater com o SHA-256 mostrado na
+página da release, e `(Get-AuthenticodeSignature $env:LOCALAPPDATA\cloudflared\cloudflared.exe).Status` deve ser `Valid`
+(assinante "Cloudflare, Inc."). Versão usada até aqui: 2026.9.3.
+
+**Problemas comuns do túnel**
+
+| Sintoma | Causa | O que fazer |
+|---|---|---|
+| Link abre "502 Bad Gateway" | O painel (janela 1) não está rodando | Subir o painel (2.2); o link continua o mesmo |
+| Link não abre ou "Error 1033" | O túnel (janela 2) caiu ou foi fechado | Rodar o túnel de novo: o link será **novo** |
+| O túnel mostra erro de conexão com a Cloudflare | Sem internet, ou a rede bloqueia o protocolo QUIC | Conferir a internet; tentar acrescentar `--protocol http2` ao comando |
+| Funciona no PC e não no celular | O celular ainda está no Wi-Fi errado, ou o link foi digitado com erro | Desligar o Wi-Fi do celular e copiar o link inteiro |
+
+**Riscos (resumo; detalhes na conversa de 25/10/2026):** o link é **público e sem login**; o túnel rápido é "só para testes"
+segundo a Cloudflare (até 200 requisições simultâneas, sem garantia de disponibilidade, e alguns filtros desconfiam do
+domínio `trycloudflare.com`); a página `/status` também fica pública; e tudo depende do notebook (energia, Wi-Fi, Windows
+Update). Se o Claude iniciar o túnel por você, ele roda **sem janela** e o sistema de permissões do Claude Code pode
+bloquear: nesse caso rode você mesmo, como acima.
 
 ### 2.8 Parar tudo
 
@@ -213,6 +286,7 @@ TSE (CDN) ──GET condicional──▶ poller (thread) ──▶ Store (memór
 | `app/api.py` | Rotas `/api/v1/...`, ETag, cabeçalhos de frescor |
 | `app/views.py` | Páginas HTML, 404 amigável, rota de fotos, `/healthz` |
 | `app/historico.py` | Série temporal por disputa (JSONL), recarregada ao reiniciar |
+| `app/acessos.py` | Contagem de acessos ao painel (páginas, requisições, pessoas online, picos), sem guardar IP |
 | `app/fotos.py` | Cache em disco das fotos (uma ida ao TSE por foto) |
 | `app/cores.py`, `app/partidos.py` | Cor de cada partido e resolução de colisões |
 | `app/tse/client.py` | Cliente HTTP educado: token bucket, GET condicional, **disjuntor** |
@@ -224,7 +298,7 @@ TSE (CDN) ──GET condicional──▶ poller (thread) ──▶ Store (memór
 | `tools/` | `capture.py`, `gerar_css_partidos.py`, `gerar_mapa.py` |
 | `tests/` | Unitários e de interface; `fixtures/tse/` tem arquivos **reais** do TSE sem alteração |
 | `ref/` | PDFs técnicos do TSE (EA10, 11, 12, 14, 15, 20, instruções de download, verificação JWS) |
-| `data/` | Dados de execução (ignorado pelo git): `historico/<ambiente>/`, `fotos/`, `logs/` (`cores/` é resto de versão antiga) |
+| `data/` | Dados de execução (ignorado pelo git): `historico/<ambiente>/`, `fotos/`, `acessos/<ambiente>.json`, `logs/` (`cores/` é resto de versão antiga) |
 
 ### 3.2 Poller (consulta ao TSE)
 
@@ -309,6 +383,20 @@ Cabeçalhos: `Content-Security-Policy` (somente a própria origem), `X-Content-T
 `Referrer-Policy: no-referrer`. O painel só tem rotas `GET`, sem login e sem dados pessoais. Fotos só são buscadas no
 TSE para candidatos que aparecem nos arquivos (`foto_valida`), com cache negativo de 10 minutos para 404.
 
+### 3.9 Acessos ao painel (Diagnóstico)
+
+- `app/acessos.py` é chamado por ganchos do Flask em `create_app` (`before_request`, `after_request`, `teardown_request`);
+  `/status`, `/api/v1/status` e `/healthz` não entram na conta. O resultado vai em `acessos` no `/api/v1/status` e aparece
+  no quadro "Acessos ao painel" da página `/status`.
+- **Páginas abertas** = respostas HTML 200 (uma visita). **Requisições** = tudo o que o navegador pede (inclui arquivos e
+  fotos, como o túnel também conta). **Pessoas online (aproximado)** = aparelhos (hash de IP + navegador, com sal sorteado
+  a cada partida, só em memória) que consultaram páginas ou dados nos últimos 35 s; arquivos e fotos não indicam presença.
+  **Picos** (online, requisições por minuto, requisições em andamento) levam o horário de Brasília.
+- Dois grupos: **pelo link público** (requisição com o cabeçalho `CF-Connecting-IP`, que o túnel da Cloudflare coloca) e
+  **todos** (inclui este computador e a rede local). Nenhum IP vai para disco nem para a resposta (há teste).
+- Totais e picos ficam em `data/acessos/<ambiente>.json` (gravados a cada 30 s e ao parar normalmente) e sobrevivem a
+  reinícios; quem está online não. Começou a contar em 25/10/2026 às 14:50; antes disso não havia contagem.
+
 ---
 
 ## 4. Feed do TSE (fatos verificados)
@@ -358,8 +446,8 @@ para atender.
 ### 6.1 Testes
 
 ```powershell
-.venv\Scripts\python.exe -m pytest                  # unitários e de API, sem rede (~45 s, 306 testes)
-.venv\Scripts\python.exe -m pytest -m e2e           # interface no Chrome contra o simulador (~8 min, 99 testes)
+.venv\Scripts\python.exe -m pytest                  # unitários e de API, sem rede (~1 min, 319 testes)
+.venv\Scripts\python.exe -m pytest -m e2e           # interface no Chrome contra o simulador (~8 min, 100 testes)
 .venv\Scripts\python.exe -m pytest -m live          # acessa o feed real do TSE (rede; use com parcimônia)
 ```
 

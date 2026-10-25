@@ -10,6 +10,7 @@ Painel **não oficial** de acompanhamento ao vivo da apuração das eleições b
 - **Evolução ao longo da apuração:** gráfico de linhas com o percentual dos três primeiros colocados, por horário ou por % das seções totalizadas, com dica ao passar o mouse, tocar ou usar as setas do teclado, e tabela equivalente. Existe para o Brasil e para cada UF.
 - **Governador e Senador:** **mapa pelo partido de quem lidera** em cada UF, com a contagem de UFs por partido, tabela com todas as UFs e página de cada UF com placar e ranking completo (Senado com a linha das 2 vagas).
 - **Deputados Federal, Estadual e Distrital:** uma aba por cargo na página de cada UF (no DF, o Distrital no lugar do Estadual) e duas páginas nacionais, `/deputados-federais` e `/deputados-estaduais`. Cada UF tem um **hemiciclo** com as vagas de cada partido ou federação (na cor do partido; a federação usa a cor do partido mais conhecido dela), a tabela de bancadas (votos, % dos votos válidos, vagas e o candidato mais votado), os candidatos mais votados com **busca** por nome (sem acento), número ou partido/federação e, depois da totalização final, a lista dos **eleitos** marcados pelo TSE. A visão nacional soma as bancadas das 27 UFs, pinta o mapa pelo partido ou federação mais votado de cada UF e traz uma linha por UF. Antes da totalização final as vagas são **provisórias** (como o TSE publica durante a apuração) e o painel diz isso; "eleito" só aparece quando o próprio TSE marca.
+- **Diagnóstico (`/status`):** estado da conexão com o TSE, arquivos acompanhados e **acessos ao painel** (páginas abertas, pessoas online agora, picos, requisições), separando quem chegou pelo link público do restante. Aproximado e sem guardar IP; totais e picos sobrevivem a reinícios.
 - **Municípios:** busca pelo nome na página de cada UF; a página do município mostra Presidente, Governador e Senador ali.
 - **Avisos honestos:** apuração não iniciada, votação do Presidente ainda não liberada (antes das 17h de Brasília), "matematicamente definido", segundo turno, totalização final e dados desatualizados.
 - **Responsivo:** celular, tablet e computador, com alvos de toque de 44 px; tema claro/escuro; sem dependências externas no navegador (nada de CDN, as fontes são servidas pelo próprio painel); acessibilidade verificada com axe-core.
@@ -49,6 +50,21 @@ $env:TSE_BASE="http://127.0.0.1:5001"; $env:TSE_AMBIENTE="simulado"; $env:ESCALA
 Controle do simulador: `http://127.0.0.1:5001/__sim` (pausar, pular para N% da apuração, injetar falhas).
 
 Para ensaiar as cores dos partidos, suba o simulador com `--partidos-reais`: os candidatos continuam fictícios (ALFA, BETA...), mas passam a ter siglas de partidos reais (PT, PL, PSD...), uma combinação diferente em cada UF.
+
+### Colocar no ar com link público (opcional)
+
+Para abrir o painel que roda no seu computador em qualquer rede (por exemplo, no celular com dados móveis) use um túnel
+da Cloudflare. Com o painel rodando em uma janela do PowerShell, abra **outra** janela e rode:
+
+```powershell
+& "$env:LOCALAPPDATA\cloudflared\cloudflared.exe" tunnel --url http://127.0.0.1:8000 --no-autoupdate
+```
+
+(No Prompt de Comando, o `cmd`, o comando é `"%LOCALAPPDATA%\cloudflared\cloudflared.exe" tunnel --url http://127.0.0.1:8000 --no-autoupdate`, sem o `&`.)
+O endereço `https://...trycloudflare.com` aparece no terminal. **O link é público (qualquer pessoa com ele acessa), vale só
+enquanto aquela janela estiver aberta e muda toda vez que o túnel reinicia**; o painel pode reiniciar sem mudar o link. O
+guia completo (como baixar o `cloudflared`, conferir o arquivo, testar e resolver problemas) está no
+[CLAUDE.md](CLAUDE.md), seções 2.2 e 2.7.
 
 ## Como funciona
 
